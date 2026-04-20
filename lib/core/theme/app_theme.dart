@@ -1,0 +1,45 @@
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import '../constants/app_colors.dart';
+
+/// 8 Count V2 — App Theme
+/// Dark, premium, handcrafted. No Material defaults for branded surfaces.
+class AppTheme {
+  AppTheme._();
+
+  static ThemeData get dark {
+    return ThemeData(
+      useMaterial3: true,
+      brightness: Brightness.dark,
+      scaffoldBackgroundColor: AppColors.black,
+      colorScheme: const ColorScheme.dark(
+        surface: AppColors.black,
+        primary: AppColors.gold,
+        secondary: AppColors.gold,
+        onSurface: AppColors.white,
+        onPrimary: AppColors.black,
+      ),
+      textTheme: GoogleFonts.interTextTheme(
+        ThemeData(brightness: Brightness.dark).textTheme,
+      ).apply(
+        bodyColor: AppColors.white,
+        displayColor: AppColors.white,
+      ),
+    );
+  }
+
+  /// Display font for large timer digits, headlines, primary CTAs.
+  static TextStyle displayFont({
+    required double fontSize,
+    Color? color,
+    FontWeight? fontWeight,
+    double? letterSpacing,
+  }) {
+    return GoogleFonts.bebasNeue(
+      fontSize: fontSize,
+      color: color ?? AppColors.white,
+      fontWeight: fontWeight ?? FontWeight.w400,
+      letterSpacing: letterSpacing ?? 1.0,
+    );
+  }
+}
