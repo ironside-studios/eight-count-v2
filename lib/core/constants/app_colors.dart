@@ -6,11 +6,13 @@ class AppColors {
   AppColors._();
 
   // Base surfaces
-  static const Color black = Color(0xFF0A0A0A);
+  // Locked 4/22/26 — premium polish pass
+  static const Color black = Color(0xFF000000);
   static const Color white = Color(0xFFFFFFFF);
 
   // Brand accent
-  static const Color gold = Color(0xFFD4A017);
+  // Locked 4/22/26 — premium polish pass
+  static const Color gold = Color(0xFFE5B842);
 
   // Tuned gold palette for letterpress effect
   // goldTuned is the base — slightly warmer, less saturated than flat #D4A017

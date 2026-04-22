@@ -4,11 +4,18 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../settings/presentation/settings_screen.dart';
 import 'widgets/preset_card.dart';
-import 'widgets/language_toggle.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
+
+  void _openSettings(BuildContext context) {
+    HapticFeedback.mediumImpact();
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const SettingsScreen()),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -21,18 +28,9 @@ class HomeScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(height: AppSpacing.md),
-              _Header(
-                onGearTap: () {
-                  HapticFeedback.mediumImpact();
-                  // Settings screen — wired in a later step
-                },
-                onLanguageToggle: (lang) {
-                  HapticFeedback.selectionClick();
-                  // Real localization switch — wired in a later step
-                },
-              ),
+              _Header(onGearTap: () => _openSettings(context)),
               const SizedBox(height: AppSpacing.xxl),
-              _BrandMark(),
+              const _BrandMark(),
               const SizedBox(height: AppSpacing.xxl),
               Expanded(
                 child: Column(
@@ -80,21 +78,16 @@ class HomeScreen extends StatelessWidget {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({
-    required this.onGearTap,
-    required this.onLanguageToggle,
-  });
+  const _Header({required this.onGearTap});
 
   final VoidCallback onGearTap;
-  final ValueChanged<String> onLanguageToggle;
 
   @override
   Widget build(BuildContext context) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      mainAxisAlignment: MainAxisAlignment.end,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        LanguageToggle(onChanged: onLanguageToggle),
         _GearButton(onTap: onGearTap),
       ],
     );
@@ -130,7 +123,7 @@ class _GearButtonState extends State<_GearButton> {
           child: Icon(
             LucideIcons.settings,
             size: 36,
-            color: AppColors.goldTuned,
+            color: AppColors.gold,
           ),
         ),
       ),
@@ -139,30 +132,19 @@ class _GearButtonState extends State<_GearButton> {
 }
 
 class _BrandMark extends StatelessWidget {
+  const _BrandMark();
+
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Text(
-          '8 COUNT',
-          textAlign: TextAlign.center,
-          style: AppTheme.goldLetterpress(
-            fontSize: 72,
-            letterSpacing: 4,
-          ),
-        ),
-        const SizedBox(height: AppSpacing.xs),
-        Text(
-          'EVERY ROUND COUNTS',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 11,
-            letterSpacing: 4,
-            fontWeight: FontWeight.w500,
-            color: AppColors.greyMuted,
-          ),
-        ),
-      ],
+    return Text(
+      '8 COUNT',
+      textAlign: TextAlign.center,
+      style: AppTheme.displayFont(
+        fontSize: 96,
+        color: AppColors.gold,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 3,
+      ),
     );
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../constants/app_colors.dart';
 
@@ -6,6 +7,17 @@ import '../constants/app_colors.dart';
 /// Dark, premium, handcrafted. No Material defaults for branded surfaces.
 class AppTheme {
   AppTheme._();
+
+  /// Edge-to-edge system bars: transparent status bar with light icons,
+  /// pure-black nav bar with light icons. Call from main() before runApp().
+  static const SystemUiOverlayStyle systemOverlay = SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    statusBarIconBrightness: Brightness.light,
+    statusBarBrightness: Brightness.dark,
+    systemNavigationBarColor: AppColors.black,
+    systemNavigationBarIconBrightness: Brightness.light,
+    systemNavigationBarContrastEnforced: false,
+  );
 
   static ThemeData get dark {
     return ThemeData(
