@@ -7,6 +7,12 @@ import 'core/services/locale_service.dart';
 import 'core/theme/app_theme.dart';
 import 'generated/l10n/app_localizations.dart';
 
+/// App-wide AudioService singleton. Lazy-initialised on first access and
+/// wired up (asset preload) inside [main] before the UI mounts. TimerScreen
+/// and anything else that needs cue playback imports this directly, same
+/// pattern as [localeService].
+final AudioService audioService = AudioService();
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setSystemUIOverlayStyle(AppTheme.systemOverlay);
@@ -15,7 +21,6 @@ Future<void> main() async {
 
   // Preload all four audio cue players before the UI goes live — cold-load
   // latency on the first play() would wreck cue accuracy during a workout.
-  final audioService = AudioService();
   await audioService.init();
 
   runApp(EightCountApp(audioService: audioService));
