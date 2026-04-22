@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
@@ -45,10 +46,7 @@ class HomeScreen extends StatelessWidget {
                       title: l10n.boxingTitle,
                       subtitle: l10n.boxingMeta,
                       isLocked: false,
-                      onTap: () {
-                        HapticFeedback.mediumImpact();
-                        // Boxing timer screen — wired in a later step
-                      },
+                      onTap: () => context.go('/timer/boxing'),
                     ),
                     const SizedBox(height: AppSpacing.base),
                     PresetCard(

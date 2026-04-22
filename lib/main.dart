@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'core/router/app_router.dart';
 import 'core/services/audio_service.dart';
 import 'core/services/locale_service.dart';
 import 'core/theme/app_theme.dart';
-import 'features/home/presentation/home_screen.dart';
 import 'generated/l10n/app_localizations.dart';
 
 Future<void> main() async {
@@ -30,7 +30,7 @@ class EightCountApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: localeService,
-      builder: (context, _) => MaterialApp(
+      builder: (context, _) => MaterialApp.router(
         title: '8 Count',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.dark,
@@ -42,7 +42,7 @@ class EightCountApp extends StatelessWidget {
           GlobalWidgetsLocalizations.delegate,
           GlobalCupertinoLocalizations.delegate,
         ],
-        home: const HomeScreen(),
+        routerConfig: appRouter,
       ),
     );
   }
