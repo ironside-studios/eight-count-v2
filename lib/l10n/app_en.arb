@@ -59,5 +59,7 @@
   "cancelAction": "CANCEL",
   "@cancelAction": { "description": "Generic cancel action button" },
   "endAction": "END",
-  "@endAction": { "description": "End-workout confirmation, destructive action" }
+  "@endAction": { "description": "End-workout confirmation, destructive action" },
+  "roundCardLabel": "Rd",
+  "@roundCardLabel": { "description": "Short abbreviation for 'Round' shown on the round counter card during a workout (e.g., 'Rd 1/12')" }
 }

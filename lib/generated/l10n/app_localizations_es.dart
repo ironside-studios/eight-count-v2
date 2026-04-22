@@ -90,4 +90,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get endAction => 'TERMINAR';
+
+  @override
+  String get roundCardLabel => 'Rnd';
 }

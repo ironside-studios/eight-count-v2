@@ -11,20 +11,28 @@ import 'package:eight_count/core/models/workout_phase.dart';
 import 'package:eight_count/generated/l10n/app_localizations.dart';
 import 'package:eight_count/main.dart' show audioService;
 
-/// First real timer screen — scoped to the pre-countdown phase only.
+/// Real-time workout timer screen — renders pre-countdown, work, and rest
+/// phases for the Boxing preset.
 ///
 /// Flow:
 ///   1. Screen mounts, engine is constructed (boxing preset) but NOT started.
 ///   2. Full gold ring + static "45" digit + "TAP TO START" hint.
-///   3. User taps anywhere → engine.start() begins the 45s countdown, the
-///      ring drains clockwise from 12 o'clock, the digit updates per frame,
-///      and PAUSE/STOP controls replace the hint.
-///   4. PAUSE freezes the ring + digit and dims the screen; RESUME unfreezes.
-///   5. STOP opens a confirmation dialog; END fires bell_end and pops home.
-///   6. Engine fires wood_clack at 11s remaining, bell_start at 0.
-///   7. Engine advances preCountdown → work; [_onEngineChange] catches the
-///      transition and pops back to home (real work/rest/complete UI lands
-///      in Step 3.2.1).
+///   3. User taps anywhere → engine.start() begins the 45s countdown.
+///      Phase label "GET READY" appears above the ring, PAUSE/STOP controls
+///      replace the hint, the ring drains, and the digit updates per frame.
+///   4. Engine advances preCountdown → work R1 → rest R1 → work R2 → … →
+///      work R12 → complete. Phase label and round card swap per phase;
+///      digit + ring derive from engine.state on every frame.
+///   5. PAUSE freezes everything and dims the screen; RESUME unfreezes.
+///   6. STOP opens a confirmation dialog; END silently (no bell) pops home.
+///   7. Natural completion (final work round expires) fires bell_end via
+///      the engine and triggers [_onEngineChange] to pop home.
+///
+/// Cues (all fired by the engine, not the UI):
+///   - wood_clack at 11s remaining in every non-complete phase
+///   - bell_start on work-phase entry
+///   - whistle_long on rest-phase entry
+///   - bell_end on complete-phase entry (suppressed for user-initiated END)
 class TimerScreen extends StatefulWidget {
   const TimerScreen({super.key, required this.presetId});
 
@@ -64,9 +72,13 @@ class _TimerScreenState extends State<TimerScreen> {
     if (_popped) return;
     final engine = _engine;
     if (engine == null) return;
-    if (engine.state.phase != WorkoutPhase.preCountdown) {
+    // Pop only on natural completion — the 50ms delay matches _handleStop so
+    // bell_end gets a moment to start playing before the route change.
+    // Intermediate transitions (preCountdown → work, work ↔ rest) stay on
+    // this screen; AnimatedBuilder rebuilds handle the label / round swaps.
+    if (engine.state.phase == WorkoutPhase.complete) {
       _popped = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
+      Future.delayed(const Duration(milliseconds: 50), () {
         if (mounted) context.pop();
       });
     }
@@ -187,6 +199,22 @@ class _TimerScreenState extends State<TimerScreen> {
     super.dispose();
   }
 
+  /// Maps the engine's phase to the user-facing label shown above the ring.
+  /// Returns `null` for [WorkoutPhase.complete] — the screen is popping, we
+  /// don't want a celebratory label flashing as the route unwinds.
+  String? _resolvePhaseLabel(WorkoutPhase phase, AppLocalizations l10n) {
+    switch (phase) {
+      case WorkoutPhase.preCountdown:
+        return l10n.phaseGetReady;
+      case WorkoutPhase.work:
+        return l10n.phaseWork;
+      case WorkoutPhase.rest:
+        return l10n.phaseRest;
+      case WorkoutPhase.complete:
+        return null;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
@@ -220,6 +248,14 @@ class _TimerScreenState extends State<TimerScreen> {
                           engine.state.phaseDuration.inMilliseconds)
                       .clamp(0.0, 1.0);
 
+              final WorkoutPhase phase =
+                  engine?.state.phase ?? WorkoutPhase.preCountdown;
+              final String? phaseLabel = _resolvePhaseLabel(phase, l10n);
+              final bool showPhaseLabel = _started && phaseLabel != null;
+              final bool showRoundCard =
+                  engine != null &&
+                  (phase == WorkoutPhase.work || phase == WorkoutPhase.rest);
+
               return Stack(
                 children: [
                   // Ring + digit + bottom section wrapped in a tap target so
@@ -232,6 +268,18 @@ class _TimerScreenState extends State<TimerScreen> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         mainAxisSize: MainAxisSize.min,
                         children: [
+                          if (showPhaseLabel) ...[
+                            Text(
+                              phaseLabel,
+                              style: GoogleFonts.bebasNeue(
+                                fontSize: 32,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFFF5C518),
+                                letterSpacing: 3,
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+                          ],
                           SizedBox(
                             width: 320,
                             height: 320,
@@ -290,6 +338,14 @@ class _TimerScreenState extends State<TimerScreen> {
                                 ),
                               ],
                             ),
+                          if (showRoundCard) ...[
+                            const SizedBox(height: 24),
+                            _RoundCard(
+                              label: l10n.roundCardLabel,
+                              currentRound: engine.state.currentRound,
+                              totalRounds: engine.state.totalRounds,
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -359,6 +415,44 @@ class _TimerActionButton extends StatelessWidget {
             color: textColor,
             letterSpacing: 3,
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Round counter card — compact readout below the action buttons during
+/// work/rest phases. Same surface color + gold-tinted border as the home
+/// screen preset cards so the design system stays coherent.
+class _RoundCard extends StatelessWidget {
+  const _RoundCard({
+    required this.label,
+    required this.currentRound,
+    required this.totalRounds,
+  });
+
+  final String label;
+  final int currentRound;
+  final int totalRounds;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 48,
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      decoration: BoxDecoration(
+        color: const Color(0xFF141414),
+        border: Border.all(color: const Color(0x1AF5C518), width: 1),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        '$label $currentRound/$totalRounds',
+        style: GoogleFonts.bebasNeue(
+          fontSize: 22,
+          fontWeight: FontWeight.w700,
+          color: const Color(0xFFFFFFFF),
+          letterSpacing: 2,
         ),
       ),
     );

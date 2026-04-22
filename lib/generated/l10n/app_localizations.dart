@@ -259,6 +259,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'END'**
   String get endAction;
+
+  /// Short abbreviation for 'Round' shown on the round counter card during a workout (e.g., 'Rd 1/12')
+  ///
+  /// In en, this message translates to:
+  /// **'Rd'**
+  String get roundCardLabel;
 }
 
 class _AppLocalizationsDelegate

@@ -26,5 +26,6 @@
   "endWorkoutTitle": "¿TERMINAR?",
   "endWorkoutBody": "El progreso no se guardará.",
   "cancelAction": "CANCELAR",
-  "endAction": "TERMINAR"
+  "endAction": "TERMINAR",
+  "roundCardLabel": "Rnd"
 }
