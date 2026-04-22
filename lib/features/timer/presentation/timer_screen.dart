@@ -8,6 +8,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:eight_count/core/engine/workout_engine.dart';
 import 'package:eight_count/core/models/workout_config.dart';
 import 'package:eight_count/core/models/workout_phase.dart';
+import 'package:eight_count/generated/l10n/app_localizations.dart';
 import 'package:eight_count/main.dart' show audioService;
 
 /// First real timer screen — scoped to the pre-countdown phase only.
@@ -94,6 +95,11 @@ class _TimerScreenState extends State<TimerScreen> {
     final engine = _engine;
     if (engine == null) return;
 
+    // Capture localizations from the screen context before showing the
+    // dialog — simpler than re-resolving via dialogContext and avoids
+    // surprises if the screen's localization delegate changes mid-flight.
+    final l10n = AppLocalizations.of(context)!;
+
     // Auto-pause while the dialog is open so the countdown doesn't drain out
     // from under the user while they decide.
     final wasAlreadyPaused = engine.state.isPaused;
@@ -111,7 +117,7 @@ class _TimerScreenState extends State<TimerScreen> {
           side: const BorderSide(color: Color(0x1AF5C518), width: 1),
         ),
         title: Text(
-          'END WORKOUT?',
+          l10n.endWorkoutTitle,
           style: GoogleFonts.bebasNeue(
             fontSize: 28,
             fontWeight: FontWeight.w700,
@@ -120,7 +126,7 @@ class _TimerScreenState extends State<TimerScreen> {
           ),
         ),
         content: Text(
-          'Progress will not be saved.',
+          l10n.endWorkoutBody,
           style: GoogleFonts.inter(
             fontSize: 16,
             color: const Color(0xFF8A8A8A),
@@ -130,7 +136,7 @@ class _TimerScreenState extends State<TimerScreen> {
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
             child: Text(
-              'CANCEL',
+              l10n.cancelAction,
               style: GoogleFonts.bebasNeue(
                 fontSize: 18,
                 color: const Color(0xFF8A8A8A),
@@ -141,7 +147,7 @@ class _TimerScreenState extends State<TimerScreen> {
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
             child: Text(
-              'END',
+              l10n.endAction,
               style: GoogleFonts.bebasNeue(
                 fontSize: 18,
                 color: const Color(0xFFF5C518),
@@ -154,12 +160,13 @@ class _TimerScreenState extends State<TimerScreen> {
     ).then((confirmed) {
       if (!mounted) return;
       if (confirmed == true) {
-        // User confirmed end → fire bell_end via engine, claim the pop so
-        // _onEngineChange's phase-advance listener doesn't also fire one.
+        // User-initiated END is an abandon, not a completion — suppress
+        // bell_end. Claim the pop via _popped so _onEngineChange's
+        // phase-advance listener doesn't fire a duplicate pop.
         _popped = true;
-        _engine?.endWorkout();
-        // Small delay so bell_end audio gets a moment to start before the
-        // route change (just_audio session survives navigation regardless).
+        _engine?.endWorkout(playCompletionCue: false);
+        // Tiny delay so the engine finishes its phase transition before
+        // the route change (keeps the UI stable during teardown).
         Future.delayed(const Duration(milliseconds: 50), () {
           if (mounted) context.pop();
         });
@@ -182,6 +189,7 @@ class _TimerScreenState extends State<TimerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
       backgroundColor: const Color(0xFF000000),
       body: AnnotatedRegion<SystemUiOverlayStyle>(
@@ -255,7 +263,7 @@ class _TimerScreenState extends State<TimerScreen> {
                           const SizedBox(height: 32),
                           if (!_started)
                             Text(
-                              'TAP TO START',
+                              l10n.tapToStartHint,
                               style: GoogleFonts.inter(
                                 fontSize: 18,
                                 fontWeight: FontWeight.w400,
@@ -268,13 +276,15 @@ class _TimerScreenState extends State<TimerScreen> {
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 _TimerActionButton(
-                                  label: isPaused ? 'RESUME' : 'PAUSE',
+                                  label: isPaused
+                                      ? l10n.resumeButton
+                                      : l10n.pauseButton,
                                   isPrimary: true,
                                   onTap: _handlePauseResume,
                                 ),
                                 const SizedBox(width: 16),
                                 _TimerActionButton(
-                                  label: 'STOP',
+                                  label: l10n.stopButton,
                                   isPrimary: false,
                                   onTap: _handleStop,
                                 ),

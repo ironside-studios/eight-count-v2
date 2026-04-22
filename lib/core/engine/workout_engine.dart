@@ -144,10 +144,21 @@ class WorkoutEngine extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Short-circuit the workout to complete. Fires bell_end and stops the ticker.
-  void endWorkout() {
+  /// Short-circuit the workout to complete.
+  ///
+  /// By default fires bell_end — natural completion (final work round expiry,
+  /// which also routes through the complete phase) keeps the triumphant
+  /// ending cue.
+  ///
+  /// Pass `playCompletionCue: false` when the user abandons the workout
+  /// (STOP → END dialog). Abandoning is not a completion; the bell would
+  /// feel celebratory and wrong.
+  void endWorkout({bool playCompletionCue = true}) {
     if (_disposed || _phase == WorkoutPhase.complete) return;
-    _advanceToPhase(WorkoutPhase.complete);
+    _advanceToPhase(
+      WorkoutPhase.complete,
+      playCompletionCue: playCompletionCue,
+    );
     notifyListeners();
   }
 
@@ -222,7 +233,11 @@ class WorkoutEngine extends ChangeNotifier {
     }
   }
 
-  void _advanceToPhase(WorkoutPhase newPhase, {int? round}) {
+  void _advanceToPhase(
+    WorkoutPhase newPhase, {
+    int? round,
+    bool playCompletionCue = true,
+  }) {
     _phase = newPhase;
     if (round != null) _currentRound = round;
     _firedCueMsThresholds.clear();
@@ -240,7 +255,9 @@ class WorkoutEngine extends ChangeNotifier {
         audio.play(cueWhistleLong);
         break;
       case WorkoutPhase.complete:
-        audio.play(cueBellEnd);
+        if (playCompletionCue) {
+          audio.play(cueBellEnd);
+        }
         _ticker?.stop();
         break;
       case WorkoutPhase.preCountdown:

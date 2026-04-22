@@ -18,5 +18,13 @@
   "phaseWork": "TRABAJO",
   "phaseRest": "DESCANSO",
   "phaseComplete": "ENTRENAMIENTO COMPLETO",
-  "roundLabel": "RONDA {current} / {total}"
+  "roundLabel": "RONDA {current} / {total}",
+  "tapToStartHint": "TOCA PARA EMPEZAR",
+  "pauseButton": "PAUSA",
+  "resumeButton": "REANUDAR",
+  "stopButton": "PARAR",
+  "endWorkoutTitle": "¿TERMINAR?",
+  "endWorkoutBody": "El progreso no se guardará.",
+  "cancelAction": "CANCELAR",
+  "endAction": "TERMINAR"
 }

@@ -201,6 +201,19 @@ void main() {
     expect(audio.playedCues.last, WorkoutEngine.cueBellEnd);
   });
 
+  test('endWorkout(playCompletionCue: false) does NOT play bell_end', () {
+    engine.start();
+    audio.playedCues.clear(); // ignore any pre-countdown / start cues
+    engine.endWorkout(playCompletionCue: false);
+
+    expect(engine.state.phase, WorkoutPhase.complete);
+    expect(
+      audio.playedCues,
+      isNot(contains(WorkoutEngine.cueBellEnd)),
+      reason: 'User-initiated END must be silent',
+    );
+  });
+
   test('dispose() does not throw if called mid-workout', () {
     engine.start();
     clock.advance(const Duration(seconds: 30));

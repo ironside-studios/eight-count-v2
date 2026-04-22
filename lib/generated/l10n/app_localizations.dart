@@ -211,6 +211,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'ROUND {current} / {total}'**
   String roundLabel(Object current, Object total);
+
+  /// Pre-countdown screen hint, shown before user taps to begin
+  ///
+  /// In en, this message translates to:
+  /// **'TAP TO START'**
+  String get tapToStartHint;
+
+  /// Timer pause button label
+  ///
+  /// In en, this message translates to:
+  /// **'PAUSE'**
+  String get pauseButton;
+
+  /// Timer resume button label (replaces PAUSE when paused)
+  ///
+  /// In en, this message translates to:
+  /// **'RESUME'**
+  String get resumeButton;
+
+  /// Timer stop button label, opens end-workout dialog
+  ///
+  /// In en, this message translates to:
+  /// **'STOP'**
+  String get stopButton;
+
+  /// End-workout confirmation dialog title
+  ///
+  /// In en, this message translates to:
+  /// **'END WORKOUT?'**
+  String get endWorkoutTitle;
+
+  /// End-workout confirmation dialog body
+  ///
+  /// In en, this message translates to:
+  /// **'Progress will not be saved.'**
+  String get endWorkoutBody;
+
+  /// Generic cancel action button
+  ///
+  /// In en, this message translates to:
+  /// **'CANCEL'**
+  String get cancelAction;
+
+  /// End-workout confirmation, destructive action
+  ///
+  /// In en, this message translates to:
+  /// **'END'**
+  String get endAction;
 }
 
 class _AppLocalizationsDelegate

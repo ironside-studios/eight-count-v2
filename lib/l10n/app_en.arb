@@ -43,5 +43,21 @@
       "current": {},
       "total": {}
     }
-  }
+  },
+  "tapToStartHint": "TAP TO START",
+  "@tapToStartHint": { "description": "Pre-countdown screen hint, shown before user taps to begin" },
+  "pauseButton": "PAUSE",
+  "@pauseButton": { "description": "Timer pause button label" },
+  "resumeButton": "RESUME",
+  "@resumeButton": { "description": "Timer resume button label (replaces PAUSE when paused)" },
+  "stopButton": "STOP",
+  "@stopButton": { "description": "Timer stop button label, opens end-workout dialog" },
+  "endWorkoutTitle": "END WORKOUT?",
+  "@endWorkoutTitle": { "description": "End-workout confirmation dialog title" },
+  "endWorkoutBody": "Progress will not be saved.",
+  "@endWorkoutBody": { "description": "End-workout confirmation dialog body" },
+  "cancelAction": "CANCEL",
+  "@cancelAction": { "description": "Generic cancel action button" },
+  "endAction": "END",
+  "@endAction": { "description": "End-workout confirmation, destructive action" }
 }

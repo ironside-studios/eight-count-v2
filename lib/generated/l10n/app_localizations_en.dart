@@ -66,4 +66,28 @@ class AppLocalizationsEn extends AppLocalizations {
   String roundLabel(Object current, Object total) {
     return 'ROUND $current / $total';
   }
+
+  @override
+  String get tapToStartHint => 'TAP TO START';
+
+  @override
+  String get pauseButton => 'PAUSE';
+
+  @override
+  String get resumeButton => 'RESUME';
+
+  @override
+  String get stopButton => 'STOP';
+
+  @override
+  String get endWorkoutTitle => 'END WORKOUT?';
+
+  @override
+  String get endWorkoutBody => 'Progress will not be saved.';
+
+  @override
+  String get cancelAction => 'CANCEL';
+
+  @override
+  String get endAction => 'END';
 }
