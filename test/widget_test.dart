@@ -3,13 +3,34 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:eight_count/main.dart';
+import 'package:eight_count/core/services/audio_service.dart';
 import 'package:eight_count/core/services/locale_service.dart';
 
+/// No-op AudioService for widget tests — skips `just_audio` player loading
+/// entirely so tests never touch the platform channel.
+class _NoopAudioService extends AudioService {
+  @override
+  Future<void> loadPlayers() async {}
+  @override
+  Future<void> startPlayback(String cueName) async {}
+  @override
+  Future<void> stopPlayback(String cueName) async {}
+  @override
+  Duration remainingFor(String cueName) => Duration.zero;
+}
+
 void main() {
+  late _NoopAudioService audioService;
+
   setUp(() async {
     SharedPreferences.setMockInitialValues(<String, Object>{});
-    // Reset the singleton between tests so locale state doesn't leak.
     await localeService.setLocale(const Locale('en'));
+    audioService = _NoopAudioService();
+    await audioService.init();
+  });
+
+  tearDown(() async {
+    await audioService.dispose();
   });
 
   void setPhoneViewport(WidgetTester tester) {
@@ -29,7 +50,7 @@ void main() {
 
     await localeService.setLocale(initialLocale);
 
-    await tester.pumpWidget(const EightCountApp());
+    await tester.pumpWidget(EightCountApp(audioService: audioService));
     await tester.pumpAndSettle();
 
     expect(find.text('8 COUNT'), findsOneWidget);
@@ -49,7 +70,7 @@ void main() {
       (WidgetTester tester) async {
     setPhoneViewport(tester);
 
-    await tester.pumpWidget(const EightCountApp());
+    await tester.pumpWidget(EightCountApp(audioService: audioService));
     await tester.pumpAndSettle();
 
     expect(find.text('8 COUNT'), findsOneWidget);
@@ -97,7 +118,7 @@ void main() {
       (WidgetTester tester) async {
     setPhoneViewport(tester);
 
-    await tester.pumpWidget(const EightCountApp());
+    await tester.pumpWidget(EightCountApp(audioService: audioService));
     await tester.pumpAndSettle();
 
     expect(find.text('BOXING'), findsOneWidget);

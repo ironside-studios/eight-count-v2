@@ -1,26 +1,244 @@
-/// Audio cue dispatcher used by the workout engine.
-///
-/// STUB: real playback + stop-before-play overlap enforcement land in a later
-/// step (when the just_audio dependency is added and assets are bundled).
-/// This file locks the public surface the engine depends on — [play] and
-/// [dispose] — so future implementations can drop in without rippling
-/// through the engine or its tests.
-///
-/// Cue name contract (string identifiers, not enums, so ARB/asset lookup
-/// stays data-driven):
-///   - 'wood_clack'    fires at remaining = 11s, once per phase
-///   - 'bell_start'    fires on work-phase entry
-///   - 'bell_end'      fires on complete-phase entry
-///   - 'whistle_long'  fires on rest-phase entry
-///
-/// Priority (enforced by the real AudioService in a later step):
-///   bell_end > bell_start > whistle_long > wood_clack
-class AudioService {
-  /// Fire-and-forget cue trigger. In the stub, this is a no-op — the engine's
-  /// behaviour is driven entirely by its own time math, not by audio state.
-  /// Tests use a FakeAudioService subclass that records calls for assertion.
-  Future<void> play(String cueName) async {}
+import 'dart:async';
 
-  /// Release underlying audio resources. No-op in the stub.
-  Future<void> dispose() async {}
+import 'package:flutter/foundation.dart';
+import 'package:just_audio/just_audio.dart';
+
+/// Audio cue dispatcher.
+///
+/// Cue contract (stable string identifiers so asset paths stay data-driven):
+///   - 'wood_clack'    11s warning marker before phase expiry
+///   - 'bell_start'    work-phase entry bell
+///   - 'bell_end'      workout-complete bell
+///   - 'whistle_long'  rest-phase entry whistle
+///
+/// Priority (see [_priority]):
+///   bell_end > bell_start > whistle_long > wood_clack
+///
+/// Queue / overlap rule (applied in [play]):
+///   - No current cue → play immediately.
+///   - New cue priority > current priority → preempt: stop current, play new.
+///   - Else, if current has > 200ms remaining → stop current, play new.
+///   - Else (≤ 200ms remaining) → queue the new cue. Only one queue slot —
+///     a later call replaces an earlier queued cue (last-write-wins).
+///     The queued cue plays when the current cue ends naturally.
+///
+/// Race safety: all [play] calls are funnelled through [_playChain] so the
+/// queue / priority state machine always sees a consistent snapshot, even
+/// under rapid-fire invocation.
+class AudioService {
+  AudioService();
+
+  // --- Static maps: cue identity, priority, asset path ---
+
+  static const Map<String, int> _priority = <String, int>{
+    'wood_clack': 1,
+    'whistle_long': 2,
+    'bell_start': 3,
+    'bell_end': 4,
+  };
+
+  static const Map<String, String> _assetPath = <String, String>{
+    'bell_start': 'assets/audio/bell_start.mp3',
+    'bell_end': 'assets/audio/bell_end.mp3',
+    'wood_clack': 'assets/audio/wood_clack.mp3',
+    'whistle_long': 'assets/audio/whistle_long.mp3',
+  };
+
+  // --- Owned state ---
+
+  final Map<String, AudioPlayer> _players = <String, AudioPlayer>{};
+  final Map<String, StreamSubscription<ProcessingState>> _subscriptions =
+      <String, StreamSubscription<ProcessingState>>{};
+
+  String? _currentCue;
+  String? _queuedCue;
+  bool _disposed = false;
+  Future<void> _playChain = Future<void>.value();
+
+  /// Currently-playing cue, or null if silent. Exposed for tests.
+  @visibleForTesting
+  String? get currentCue => _currentCue;
+
+  /// Contents of the single queue slot (or null). Exposed for tests.
+  @visibleForTesting
+  String? get queuedCue => _queuedCue;
+
+  /// Drains any in-flight [play] invocations. Used by tests to deterministically
+  /// await the full effect of an async queue mutation.
+  @visibleForTesting
+  Future<void> settle() => _playChain;
+
+  // --- Public API ---
+
+  /// Preloads all four cue players. Must be called once at app startup before
+  /// the workout engine is allowed to fire [play].
+  Future<void> init() async {
+    if (_disposed) {
+      throw StateError('AudioService: init() called after dispose()');
+    }
+    await loadPlayers();
+  }
+
+  /// Dispatches a cue. Returns a Future that completes when the queue/priority
+  /// logic has fully settled for this call (playback itself is fire-and-forget).
+  Future<void> play(String cueName) {
+    if (!_assetPath.containsKey(cueName)) {
+      throw ArgumentError.value(
+        cueName,
+        'cueName',
+        'Unknown audio cue. Known cues: ${_assetPath.keys.join(', ')}',
+      );
+    }
+    final Future<void> task = _playChain.then((_) => _executePlay(cueName));
+    // Tail of the chain must never reject, or rapid-succession calls would
+    // carry a rejection forward. Swallow errors for chain continuity; the
+    // caller's `task` future still rejects if _executePlay throws.
+    _playChain = task.catchError((Object _) {});
+    return task;
+  }
+
+  /// Releases all players + subscriptions; cancels any queued/current cue.
+  /// Idempotent.
+  Future<void> dispose() async {
+    if (_disposed) return;
+    _disposed = true;
+    _queuedCue = null;
+    final String? wasCurrent = _currentCue;
+    _currentCue = null;
+
+    for (final sub in _subscriptions.values) {
+      await sub.cancel();
+    }
+    _subscriptions.clear();
+
+    if (wasCurrent != null) {
+      try {
+        await stopPlayback(wasCurrent);
+      } catch (_) {
+        /* Swallow — we're tearing down anyway. */
+      }
+    }
+
+    for (final player in _players.values) {
+      try {
+        await player.dispose();
+      } catch (_) {
+        /* Same — teardown is best-effort. */
+      }
+    }
+    _players.clear();
+  }
+
+  // --- Hooks: overridable by test subclasses to stub out the platform layer ---
+
+  /// Creates the four [AudioPlayer]s, loads their assets, and wires a
+  /// completion listener per player. Subclasses in tests override this to
+  /// no-op so `just_audio` is never invoked.
+  @protected
+  Future<void> loadPlayers() async {
+    for (final entry in _assetPath.entries) {
+      try {
+        final AudioPlayer player = AudioPlayer();
+        await player.setAsset(entry.value);
+        _players[entry.key] = player;
+        _subscriptions[entry.key] =
+            player.processingStateStream.listen((ProcessingState state) {
+          if (state == ProcessingState.completed) {
+            handlePlaybackCompleted(entry.key);
+          }
+        });
+      } catch (e) {
+        throw StateError(
+          'AudioService: failed to load asset "${entry.value}" '
+          'for cue "${entry.key}": $e',
+        );
+      }
+    }
+  }
+
+  /// Seeks to 0 and plays the cue's player. Fire-and-forget — the returned
+  /// Future completes after seek + play kickoff, not after playback ends.
+  @protected
+  Future<void> startPlayback(String cueName) async {
+    final AudioPlayer? player = _players[cueName];
+    if (player == null) return;
+    await player.seek(Duration.zero);
+    unawaited(player.play());
+  }
+
+  /// Stops the cue's player.
+  @protected
+  Future<void> stopPlayback(String cueName) async {
+    final AudioPlayer? player = _players[cueName];
+    if (player == null) return;
+    await player.stop();
+  }
+
+  /// `duration - position` for the cue's player, guarded against unknown
+  /// durations and negative values.
+  @protected
+  Duration remainingFor(String cueName) {
+    final AudioPlayer? player = _players[cueName];
+    if (player == null) return Duration.zero;
+    final Duration? total = player.duration;
+    if (total == null) return Duration.zero;
+    final Duration rem = total - player.position;
+    return rem.isNegative ? Duration.zero : rem;
+  }
+
+  /// Called when the currently-playing cue reaches its natural end. Real
+  /// subclasses trigger this from a `processingStateStream` listener; test
+  /// subclasses call it directly to simulate a cue finishing.
+  @protected
+  void handlePlaybackCompleted(String cueName) {
+    if (_disposed) return;
+    if (_currentCue != cueName) return; // stale notification
+    _currentCue = null;
+    final String? promoted = _queuedCue;
+    _queuedCue = null;
+    if (promoted != null) {
+      final Future<void> task =
+          _playChain.then((_) => _executePlay(promoted));
+      _playChain = task.catchError((Object _) {});
+    }
+  }
+
+  // --- Internals ---
+
+  Future<void> _executePlay(String newCue) async {
+    if (_disposed) return;
+    final int newPrio = _priority[newCue]!;
+
+    // Case 1: nothing playing.
+    if (_currentCue == null) {
+      await startPlayback(newCue);
+      _currentCue = newCue;
+      return;
+    }
+
+    final String current = _currentCue!;
+    final int currentPrio = _priority[current]!;
+
+    // Case 2: higher-priority cue preempts. Drops any queued cue too.
+    if (newPrio > currentPrio) {
+      _currentCue = null;
+      _queuedCue = null;
+      await stopPlayback(current);
+      await startPlayback(newCue);
+      _currentCue = newCue;
+      return;
+    }
+
+    // Case 3: same or lower priority → 200ms queue rule.
+    final Duration remaining = remainingFor(current);
+    if (remaining > const Duration(milliseconds: 200)) {
+      _currentCue = null;
+      await stopPlayback(current);
+      await startPlayback(newCue);
+      _currentCue = newCue;
+    } else {
+      // Last-write-wins for the single queue slot.
+      _queuedCue = newCue;
+    }
+  }
 }

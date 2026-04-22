@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'core/services/audio_service.dart';
 import 'core/services/locale_service.dart';
 import 'core/theme/app_theme.dart';
 import 'features/home/presentation/home_screen.dart';
@@ -11,11 +12,19 @@ Future<void> main() async {
   SystemChrome.setSystemUIOverlayStyle(AppTheme.systemOverlay);
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   await localeService.loadFromPrefs();
-  runApp(const EightCountApp());
+
+  // Preload all four audio cue players before the UI goes live — cold-load
+  // latency on the first play() would wreck cue accuracy during a workout.
+  final audioService = AudioService();
+  await audioService.init();
+
+  runApp(EightCountApp(audioService: audioService));
 }
 
 class EightCountApp extends StatelessWidget {
-  const EightCountApp({super.key});
+  const EightCountApp({super.key, required this.audioService});
+
+  final AudioService audioService;
 
   @override
   Widget build(BuildContext context) {
