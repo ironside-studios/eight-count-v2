@@ -5,9 +5,11 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'package:eight_count/core/design/phase_colors.dart';
 import 'package:eight_count/core/engine/workout_engine.dart';
 import 'package:eight_count/core/models/workout_config.dart';
 import 'package:eight_count/core/models/workout_phase.dart';
+import 'package:eight_count/core/utils/time_format.dart';
 import 'package:eight_count/generated/l10n/app_localizations.dart';
 import 'package:eight_count/main.dart' show audioService;
 
@@ -28,11 +30,11 @@ import 'package:eight_count/main.dart' show audioService;
 ///   7. Natural completion (final work round expires) fires bell_end via
 ///      the engine and triggers [_onEngineChange] to pop home.
 ///
-/// Cues (all fired by the engine, not the UI):
+/// Cues (all fired by the engine, not the UI) — Boxing contract:
 ///   - wood_clack at 11s remaining in every non-complete phase
-///   - bell_start on work-phase entry
-///   - whistle_long on rest-phase entry
-///   - bell_end on complete-phase entry (suppressed for user-initiated END)
+///   - bell_start on work-phase entry (incl. from preCountdown and rest)
+///   - bell_end on work-phase EXIT (every round, including final)
+///   - rest-entry is SILENT (whistle_long is reserved for Smoker)
 class TimerScreen extends StatefulWidget {
   const TimerScreen({super.key, required this.presetId});
 
@@ -72,17 +74,78 @@ class _TimerScreenState extends State<TimerScreen> {
     if (_popped) return;
     final engine = _engine;
     if (engine == null) return;
-    // Pop only on natural completion — the 50ms delay matches _handleStop so
-    // bell_end gets a moment to start playing before the route change.
-    // Intermediate transitions (preCountdown → work, work ↔ rest) stay on
-    // this screen; AnimatedBuilder rebuilds handle the label / round swaps.
+    // Natural completion → route to the complete screen (stack replacement).
+    // 50ms delay matches _handleStop so bell_end has a moment to start
+    // playing before the route change. Intermediate transitions
+    // (preCountdown → work, work ↔ rest) stay on this screen; AnimatedBuilder
+    // rebuilds handle the label / ring-color / round-card swaps.
     if (engine.state.phase == WorkoutPhase.complete) {
       _popped = true;
+      final int totalSeconds = _totalWorkoutSeconds(engine.config);
+      final String presetId = widget.presetId;
       Future.delayed(const Duration(milliseconds: 50), () {
-        if (mounted) context.pop();
+        if (!mounted) return;
+        context.go(
+          '/complete',
+          extra: <String, dynamic>{
+            'totalSeconds': totalSeconds,
+            'presetId': presetId,
+          },
+        );
       });
     }
     // No setState — AnimatedBuilder in build() handles rebuilds.
+  }
+
+  /// Full work + rest seconds for the configured workout (no pre-countdown).
+  /// Boxing: 180*12 + 60*11 = 2820s = 47:00. Rest count is `totalRounds - 1`
+  /// because the final round has no rest (work R12 → complete directly).
+  static int _totalWorkoutSeconds(WorkoutConfig config) {
+    final int workSec = config.workDuration.inSeconds * config.totalRounds;
+    final int restSec =
+        config.restDuration.inSeconds * (config.totalRounds - 1);
+    return workSec + restSec;
+  }
+
+  /// Remaining seconds on the whole work+rest cycle (pre-countdown excluded),
+  /// derived from live engine state — never stored. Ceil'd so the last second
+  /// stays on screen through its full tick.
+  ///
+  ///   totalMs       = workMs * N   +  restMs * (N - 1)
+  ///   elapsed[work] = (round-1) * (workMs + restMs) + (workMs - phaseRemainingMs)
+  ///   elapsed[rest] = (round-1) * (workMs + restMs) + workMs + (restMs - phaseRemainingMs)
+  static int _remainingTotalSeconds(
+    WorkoutConfig config,
+    WorkoutPhase phase,
+    int currentRound,
+    int phaseRemainingMs,
+  ) {
+    final int workMs = config.workDuration.inMilliseconds;
+    final int restMs = config.restDuration.inMilliseconds;
+    final int roundMs = workMs + restMs;
+    final int totalMs =
+        workMs * config.totalRounds + restMs * (config.totalRounds - 1);
+    final int priorFullRounds =
+        (currentRound - 1).clamp(0, config.totalRounds);
+
+    int elapsedMs;
+    switch (phase) {
+      case WorkoutPhase.preCountdown:
+        elapsedMs = 0;
+        break;
+      case WorkoutPhase.work:
+        elapsedMs = priorFullRounds * roundMs + (workMs - phaseRemainingMs);
+        break;
+      case WorkoutPhase.rest:
+        elapsedMs =
+            priorFullRounds * roundMs + workMs + (restMs - phaseRemainingMs);
+        break;
+      case WorkoutPhase.complete:
+        elapsedMs = totalMs;
+        break;
+    }
+    final int remainingMs = (totalMs - elapsedMs).clamp(0, totalMs);
+    return (remainingMs / 1000).ceil();
   }
 
   void _handleStartTap() {
@@ -234,13 +297,23 @@ class _TimerScreenState extends State<TimerScreen> {
               final engine = _engine;
               final bool isPaused = engine?.state.isPaused ?? false;
 
-              final int displayedSeconds = engine == null
+              final WorkoutPhase phase =
+                  engine?.state.phase ?? WorkoutPhase.preCountdown;
+
+              final int remainingSec = engine == null
                   ? 45
                   : (_started
                       ? (engine.state.phaseRemaining.inMilliseconds / 1000)
                           .ceil()
-                          .clamp(0, 999)
+                          .clamp(0, 9999)
+                          .toInt()
                       : engine.state.phaseDuration.inSeconds);
+
+              // Pre-countdown reads as a hype countdown (raw seconds).
+              // Work + rest read as a clock (M:SS / :SS).
+              final String digitText = (phase == WorkoutPhase.preCountdown)
+                  ? remainingSec.toString()
+                  : formatMmSs(remainingSec);
 
               final double progress = (!_started || engine == null)
                   ? 1.0
@@ -248,13 +321,22 @@ class _TimerScreenState extends State<TimerScreen> {
                           engine.state.phaseDuration.inMilliseconds)
                       .clamp(0.0, 1.0);
 
-              final WorkoutPhase phase =
-                  engine?.state.phase ?? WorkoutPhase.preCountdown;
+              final Color phaseColor = colorForPhase(phase);
+
               final String? phaseLabel = _resolvePhaseLabel(phase, l10n);
               final bool showPhaseLabel = _started && phaseLabel != null;
               final bool showRoundCard =
                   engine != null &&
                   (phase == WorkoutPhase.work || phase == WorkoutPhase.rest);
+              final bool showTotalCard = showRoundCard;
+              final int totalRemainingSec = engine == null
+                  ? 0
+                  : _remainingTotalSeconds(
+                      engine.config,
+                      phase,
+                      engine.state.currentRound,
+                      engine.state.phaseRemaining.inMilliseconds,
+                    );
 
               return Stack(
                 children: [
@@ -274,7 +356,7 @@ class _TimerScreenState extends State<TimerScreen> {
                               style: GoogleFonts.bebasNeue(
                                 fontSize: 32,
                                 fontWeight: FontWeight.w700,
-                                color: const Color(0xFFF5C518),
+                                color: phaseColor,
                                 letterSpacing: 3,
                               ),
                             ),
@@ -290,17 +372,17 @@ class _TimerScreenState extends State<TimerScreen> {
                                   size: const Size(320, 320),
                                   painter: _CountdownRingPainter(
                                     progress: progress,
-                                    color: const Color(0xFFF5C518),
+                                    arcColor: phaseColor,
                                     trackColor: const Color(0x1AF5C518),
                                     strokeWidth: 6,
                                   ),
                                 ),
                                 Text(
-                                  '$displayedSeconds',
+                                  digitText,
                                   style: GoogleFonts.bebasNeue(
                                     fontSize: 220,
                                     fontWeight: FontWeight.w700,
-                                    color: const Color(0xFFF5C518),
+                                    color: phaseColor,
                                     letterSpacing: 0,
                                     height: 1.0,
                                   ),
@@ -344,6 +426,13 @@ class _TimerScreenState extends State<TimerScreen> {
                               label: l10n.roundCardLabel,
                               currentRound: engine.state.currentRound,
                               totalRounds: engine.state.totalRounds,
+                            ),
+                          ],
+                          if (showTotalCard) ...[
+                            const SizedBox(height: 12),
+                            _TotalTimeCard(
+                              label: l10n.totalTimeCardLabel,
+                              remainingTotalSeconds: totalRemainingSec,
                             ),
                           ],
                         ],
@@ -459,18 +548,21 @@ class _RoundCard extends StatelessWidget {
   }
 }
 
-/// Gold progress ring that drains clockwise from 12 o'clock.
-/// [progress] = 1.0 → full circle; 0.0 → empty.
+/// Progress ring that drains clockwise from 12 o'clock.
+/// [progress] = 1.0 → full circle; 0.0 → empty. [arcColor] changes per phase
+/// (gold pre-countdown, green during work, red during rest). The dim
+/// background track stays gold-tinted — it's a structural element, not
+/// phase state.
 class _CountdownRingPainter extends CustomPainter {
   _CountdownRingPainter({
     required this.progress,
-    required this.color,
+    required this.arcColor,
     required this.trackColor,
     required this.strokeWidth,
   });
 
   final double progress;
-  final Color color;
+  final Color arcColor;
   final Color trackColor;
   final double strokeWidth;
 
@@ -488,7 +580,7 @@ class _CountdownRingPainter extends CustomPainter {
 
     if (progress > 0) {
       final Paint activePaint = Paint()
-        ..color = color
+        ..color = arcColor
         ..style = PaintingStyle.stroke
         ..strokeWidth = strokeWidth
         ..strokeCap = StrokeCap.round;
@@ -507,7 +599,43 @@ class _CountdownRingPainter extends CustomPainter {
   @override
   bool shouldRepaint(_CountdownRingPainter old) =>
       old.progress != progress ||
-      old.color != color ||
+      old.arcColor != arcColor ||
       old.trackColor != trackColor ||
       old.strokeWidth != strokeWidth;
+}
+
+/// Total workout time remaining card — shown below the round card during
+/// work/rest phases. Neutral white-on-charcoal so it reads as reference info
+/// rather than phase state. Derived from engine state, never stored.
+class _TotalTimeCard extends StatelessWidget {
+  const _TotalTimeCard({
+    required this.label,
+    required this.remainingTotalSeconds,
+  });
+
+  final String label;
+  final int remainingTotalSeconds;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 48,
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      decoration: BoxDecoration(
+        color: const Color(0xFF141414),
+        border: Border.all(color: const Color(0x1AF5C518), width: 1),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        '$label ${formatMmSs(remainingTotalSeconds)}',
+        style: GoogleFonts.bebasNeue(
+          fontSize: 22,
+          fontWeight: FontWeight.w700,
+          color: const Color(0xFFFFFFFF),
+          letterSpacing: 2,
+        ),
+      ),
+    );
+  }
 }

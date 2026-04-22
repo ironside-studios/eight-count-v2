@@ -219,10 +219,22 @@ class WorkoutEngine extends ChangeNotifier {
         _advanceToPhase(WorkoutPhase.work, round: 1);
         break;
       case WorkoutPhase.work:
+        // Boxing cue contract: bell_end fires at the end of every work
+        // phase — both non-final (work → rest) and final (work → complete).
+        // We fire it HERE on the work-exit side so user-initiated END
+        // (which routes through endWorkout → _advanceToPhase(complete, …))
+        // stays silent.
+        audio.play(cueBellEnd);
         if (_currentRound < config.totalRounds) {
           _advanceToPhase(WorkoutPhase.rest);
         } else {
-          _advanceToPhase(WorkoutPhase.complete);
+          // Final round: skip the rest phase entirely. bell_end has already
+          // fired above, so suppress the complete-entry cue to avoid a
+          // double bell.
+          _advanceToPhase(
+            WorkoutPhase.complete,
+            playCompletionCue: false,
+          );
         }
         break;
       case WorkoutPhase.rest:
@@ -252,9 +264,15 @@ class WorkoutEngine extends ChangeNotifier {
         audio.play(cueBellStart);
         break;
       case WorkoutPhase.rest:
-        audio.play(cueWhistleLong);
+        // Boxing cue contract: rest-entry is SILENT. whistle_long is
+        // reserved for the Smoker preset (Step 6) — the asset is still
+        // preloaded by AudioService but nothing fires it on Boxing.
         break;
       case WorkoutPhase.complete:
+        // [playCompletionCue] is false on two paths:
+        //   (1) user-initiated END (engine.endWorkout(playCompletionCue: false))
+        //   (2) natural final-round completion (bell_end already fired
+        //       on the work-exit side in _advanceFromCurrentPhase)
         if (playCompletionCue) {
           audio.play(cueBellEnd);
         }

@@ -93,4 +93,16 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get roundCardLabel => 'Rnd';
+
+  @override
+  String get totalTimeCardLabel => 'TOTAL';
+
+  @override
+  String get workoutCompleteTitle => 'ENTRENAMIENTO COMPLETO';
+
+  @override
+  String get workoutCompleteTotalLabel => 'TIEMPO TOTAL';
+
+  @override
+  String get doneAction => 'LISTO';
 }

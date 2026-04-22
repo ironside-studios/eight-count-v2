@@ -96,8 +96,8 @@ void main() {
   });
 
   test(
-      'Advancing through 12 rounds produces 12 bell_start, 11 whistle_long, '
-      '1 bell_end, 24 wood_clack cues', () {
+      'Advancing through 12 rounds produces 12 bell_start, 0 whistle_long, '
+      '12 bell_end, 24 wood_clack cues (Boxing cue contract)', () {
     engine.start();
 
     // Finish preCountdown: fire the 11s warning then expire.
@@ -111,7 +111,7 @@ void main() {
       clock.advance(const Duration(seconds: 169));
       engine.debugTick(); // fires wood_clack (180→11s)
       clock.advance(const Duration(seconds: 11));
-      engine.debugTick(); // expires work; → rest (or complete on round 12)
+      engine.debugTick(); // expires work → bell_end + rest (or complete on R12)
 
       if (round < 12) {
         // Inside rest: trigger warning cue, then expire.
@@ -127,10 +127,10 @@ void main() {
 
     expect(count(WorkoutEngine.cueBellStart), 12,
         reason: '1 from preCountdown + 11 from rest→work transitions');
-    expect(count(WorkoutEngine.cueWhistleLong), 11,
-        reason: 'work→rest transitions for rounds 1..11');
-    expect(count(WorkoutEngine.cueBellEnd), 1,
-        reason: 'final work→complete transition after round 12');
+    expect(count(WorkoutEngine.cueWhistleLong), 0,
+        reason: 'whistle_long is Smoker-only; Boxing never fires it');
+    expect(count(WorkoutEngine.cueBellEnd), 12,
+        reason: 'bell_end fires at end of every work phase (incl. final)');
     expect(count(WorkoutEngine.cueWoodClack), 24,
         reason: '1 preCountdown + 12 work + 11 rest warnings');
 
@@ -174,7 +174,10 @@ void main() {
 
     expect(engine.state.phase, WorkoutPhase.rest);
     expect(engine.state.currentRound, 1);
-    expect(audio.playedCues.contains(WorkoutEngine.cueWhistleLong), isTrue);
+    expect(audio.playedCues.contains(WorkoutEngine.cueBellEnd), isTrue,
+        reason: 'bell_end fires on work-phase exit');
+    expect(audio.playedCues.contains(WorkoutEngine.cueWhistleLong), isFalse,
+        reason: 'whistle_long is Smoker-only');
   });
 
   test('skipPhase() during rest of round N advances to work of round N+1', () {
@@ -221,5 +224,105 @@ void main() {
 
     expect(() => engine.dispose(), returnsNormally);
     // tearDown will call dispose() again — the engine must tolerate it.
+  });
+
+  // --- Boxing cue-contract tests (Step 3.2.1.1) ---
+
+  test('Boxing: bell_end fires at end of every work phase', () {
+    engine.start();
+    clock.advance(const Duration(seconds: 45));
+    engine.debugTick(); // preCountdown → work R1
+    audio.playedCues.clear();
+
+    int bellEnds() =>
+        audio.playedCues.where((c) => c == WorkoutEngine.cueBellEnd).length;
+
+    // Work R1 → rest R1: one bell_end.
+    clock.advance(const Duration(seconds: 180));
+    engine.debugTick();
+    expect(bellEnds(), 1, reason: 'bell_end fires on work R1 exit');
+
+    // Rest R1 → work R2: NO new bell_end (rest-exit fires bell_start only).
+    clock.advance(const Duration(seconds: 60));
+    engine.debugTick();
+    expect(bellEnds(), 1, reason: 'rest-exit fires bell_start, not bell_end');
+
+    // Work R2 → rest R2: another bell_end.
+    clock.advance(const Duration(seconds: 180));
+    engine.debugTick();
+    expect(bellEnds(), 2, reason: 'bell_end fires on work R2 exit');
+  });
+
+  test('Boxing: whistle_long never fires anywhere in the workout flow', () {
+    engine.start();
+    clock.advance(const Duration(seconds: 45));
+    engine.debugTick(); // → work R1
+
+    for (int round = 1; round <= 12; round++) {
+      clock.advance(const Duration(seconds: 180));
+      engine.debugTick(); // work → rest (or complete on R12)
+      if (round < 12) {
+        clock.advance(const Duration(seconds: 60));
+        engine.debugTick(); // rest → work N+1
+      }
+    }
+
+    expect(
+      audio.playedCues,
+      isNot(contains(WorkoutEngine.cueWhistleLong)),
+      reason: 'Boxing preset must never fire whistle_long (Smoker-only cue)',
+    );
+  });
+
+  test('Boxing: final round skips rest, transitions directly to complete',
+      () {
+    engine.start();
+    clock.advance(const Duration(seconds: 45));
+    engine.debugTick(); // → work R1
+
+    // Run rounds 1–11 (each full work + rest).
+    for (int round = 1; round <= 11; round++) {
+      clock.advance(const Duration(seconds: 180));
+      engine.debugTick(); // work → rest
+      clock.advance(const Duration(seconds: 60));
+      engine.debugTick(); // rest → work N+1
+    }
+
+    expect(engine.state.phase, WorkoutPhase.work);
+    expect(engine.state.currentRound, 12);
+
+    // Expire R12 work — must go straight to complete, NOT rest.
+    clock.advance(const Duration(seconds: 180));
+    engine.debugTick();
+
+    expect(engine.state.phase, WorkoutPhase.complete);
+  });
+
+  test('Boxing: final round fires bell_end exactly once (no double bell)',
+      () {
+    engine.start();
+    clock.advance(const Duration(seconds: 45));
+    engine.debugTick(); // → work R1
+
+    // Advance to start of R12.
+    for (int round = 1; round <= 11; round++) {
+      clock.advance(const Duration(seconds: 180));
+      engine.debugTick();
+      clock.advance(const Duration(seconds: 60));
+      engine.debugTick();
+    }
+    audio.playedCues.clear(); // drop prior bell_ends (rounds 1..11)
+
+    // Expire R12 work.
+    clock.advance(const Duration(seconds: 180));
+    engine.debugTick();
+
+    expect(
+      audio.playedCues.where((c) => c == WorkoutEngine.cueBellEnd).length,
+      1,
+      reason:
+          'work-exit fires bell_end; complete-entry must NOT fire a second',
+    );
+    expect(engine.state.phase, WorkoutPhase.complete);
   });
 }

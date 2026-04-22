@@ -27,5 +27,9 @@
   "endWorkoutBody": "El progreso no se guardará.",
   "cancelAction": "CANCELAR",
   "endAction": "TERMINAR",
-  "roundCardLabel": "Rnd"
+  "roundCardLabel": "Rnd",
+  "totalTimeCardLabel": "TOTAL",
+  "workoutCompleteTitle": "ENTRENAMIENTO COMPLETO",
+  "workoutCompleteTotalLabel": "TIEMPO TOTAL",
+  "doneAction": "LISTO"
 }

@@ -61,5 +61,13 @@
   "endAction": "END",
   "@endAction": { "description": "End-workout confirmation, destructive action" },
   "roundCardLabel": "Rd",
-  "@roundCardLabel": { "description": "Short abbreviation for 'Round' shown on the round counter card during a workout (e.g., 'Rd 1/12')" }
+  "@roundCardLabel": { "description": "Short abbreviation for 'Round' shown on the round counter card during a workout (e.g., 'Rd 1/12')" },
+  "totalTimeCardLabel": "TOTAL",
+  "@totalTimeCardLabel": { "description": "Label on the total workout time card shown during a workout" },
+  "workoutCompleteTitle": "WORKOUT COMPLETE",
+  "@workoutCompleteTitle": { "description": "Title shown on the workout complete screen" },
+  "workoutCompleteTotalLabel": "TOTAL TIME",
+  "@workoutCompleteTotalLabel": { "description": "Label above the total time figure on the complete screen" },
+  "doneAction": "DONE",
+  "@doneAction": { "description": "Button to dismiss the workout complete screen and return home" }
 }

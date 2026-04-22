@@ -265,6 +265,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Rd'**
   String get roundCardLabel;
+
+  /// Label on the total workout time card shown during a workout
+  ///
+  /// In en, this message translates to:
+  /// **'TOTAL'**
+  String get totalTimeCardLabel;
+
+  /// Title shown on the workout complete screen
+  ///
+  /// In en, this message translates to:
+  /// **'WORKOUT COMPLETE'**
+  String get workoutCompleteTitle;
+
+  /// Label above the total time figure on the complete screen
+  ///
+  /// In en, this message translates to:
+  /// **'TOTAL TIME'**
+  String get workoutCompleteTotalLabel;
+
+  /// Button to dismiss the workout complete screen and return home
+  ///
+  /// In en, this message translates to:
+  /// **'DONE'**
+  String get doneAction;
 }
 
 class _AppLocalizationsDelegate
