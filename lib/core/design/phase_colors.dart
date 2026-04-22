@@ -24,3 +24,21 @@ Color colorForPhase(WorkoutPhase phase) {
       return phaseColorPreCountdown;
   }
 }
+
+/// Color for the big digit and the phase label text.
+///
+/// Pre-countdown uses gold — the whole screen reads as the "brand hype"
+/// moment before the workout begins. Work and rest use white for maximum
+/// OLED contrast and fast glance-reads; the ring (via [colorForPhase])
+/// carries phase state on its own. [WorkoutPhase.complete] never renders
+/// on this screen.
+Color digitColorForPhase(WorkoutPhase phase) {
+  switch (phase) {
+    case WorkoutPhase.preCountdown:
+      return phaseColorPreCountdown;
+    case WorkoutPhase.work:
+    case WorkoutPhase.rest:
+    case WorkoutPhase.complete:
+      return Colors.white;
+  }
+}

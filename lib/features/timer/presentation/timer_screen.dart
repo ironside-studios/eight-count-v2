@@ -322,6 +322,9 @@ class _TimerScreenState extends State<TimerScreen> {
                       .clamp(0.0, 1.0);
 
               final Color phaseColor = colorForPhase(phase);
+              // Ring carries phase state; digit + label flip to white during
+              // work/rest for maximum OLED contrast and glance-readability.
+              final Color digitColor = digitColorForPhase(phase);
 
               final String? phaseLabel = _resolvePhaseLabel(phase, l10n);
               final bool showPhaseLabel = _started && phaseLabel != null;
@@ -354,22 +357,22 @@ class _TimerScreenState extends State<TimerScreen> {
                             Text(
                               phaseLabel,
                               style: GoogleFonts.bebasNeue(
-                                fontSize: 32,
+                                fontSize: 64,
                                 fontWeight: FontWeight.w700,
-                                color: phaseColor,
+                                color: digitColor,
                                 letterSpacing: 3,
                               ),
                             ),
                             const SizedBox(height: 24),
                           ],
                           SizedBox(
-                            width: 320,
-                            height: 320,
+                            width: 380,
+                            height: 380,
                             child: Stack(
                               alignment: Alignment.center,
                               children: [
                                 CustomPaint(
-                                  size: const Size(320, 320),
+                                  size: const Size(380, 380),
                                   painter: _CountdownRingPainter(
                                     progress: progress,
                                     arcColor: phaseColor,
@@ -382,7 +385,7 @@ class _TimerScreenState extends State<TimerScreen> {
                                   style: GoogleFonts.bebasNeue(
                                     fontSize: 220,
                                     fontWeight: FontWeight.w700,
-                                    color: phaseColor,
+                                    color: digitColor,
                                     letterSpacing: 0,
                                     height: 1.0,
                                   ),
@@ -429,7 +432,7 @@ class _TimerScreenState extends State<TimerScreen> {
                             ),
                           ],
                           if (showTotalCard) ...[
-                            const SizedBox(height: 12),
+                            const SizedBox(height: 16),
                             _TotalTimeCard(
                               label: l10n.totalTimeCardLabel,
                               remainingTotalSeconds: totalRemainingSec,
@@ -527,8 +530,8 @@ class _RoundCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 48,
-      padding: const EdgeInsets.symmetric(horizontal: 24),
+      width: 220,
+      height: 72,
       decoration: BoxDecoration(
         color: const Color(0xFF141414),
         border: Border.all(color: const Color(0x1AF5C518), width: 1),
@@ -538,7 +541,7 @@ class _RoundCard extends StatelessWidget {
       child: Text(
         '$label $currentRound/$totalRounds',
         style: GoogleFonts.bebasNeue(
-          fontSize: 22,
+          fontSize: 40,
           fontWeight: FontWeight.w700,
           color: const Color(0xFFFFFFFF),
           letterSpacing: 2,
@@ -619,8 +622,8 @@ class _TotalTimeCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 48,
-      padding: const EdgeInsets.symmetric(horizontal: 24),
+      width: 220,
+      height: 72,
       decoration: BoxDecoration(
         color: const Color(0xFF141414),
         border: Border.all(color: const Color(0x1AF5C518), width: 1),
@@ -630,7 +633,7 @@ class _TotalTimeCard extends StatelessWidget {
       child: Text(
         '$label ${formatMmSs(remainingTotalSeconds)}',
         style: GoogleFonts.bebasNeue(
-          fontSize: 22,
+          fontSize: 40,
           fontWeight: FontWeight.w700,
           color: const Color(0xFFFFFFFF),
           letterSpacing: 2,
