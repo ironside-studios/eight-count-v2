@@ -46,7 +46,7 @@ class HomeScreen extends StatelessWidget {
                       title: l10n.boxingTitle,
                       subtitle: l10n.boxingMeta,
                       isLocked: false,
-                      onTap: () => context.go('/timer/boxing'),
+                      onTap: () => context.push('/timer/boxing'),
                     ),
                     const SizedBox(height: AppSpacing.base),
                     PresetCard(
