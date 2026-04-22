@@ -42,4 +42,34 @@ class AppTheme {
       letterSpacing: letterSpacing ?? 1.0,
     );
   }
+
+  /// Tuned gold with letterpress effect — embossed/stamped look for branded type.
+  /// Uses layered shadows to create the illusion of engraving on a dark surface.
+  /// Pass this as a TextStyle to Bebas Neue headlines for the premium brand feel.
+  static TextStyle goldLetterpress({
+    required double fontSize,
+    double? letterSpacing,
+    FontWeight? fontWeight,
+  }) {
+    return GoogleFonts.bebasNeue(
+      fontSize: fontSize,
+      color: AppColors.goldTuned,
+      fontWeight: fontWeight ?? FontWeight.w400,
+      letterSpacing: letterSpacing ?? 2.0,
+      shadows: const [
+        // Inner top highlight (lighter gold) — simulates light catching the engraving's top edge
+        Shadow(
+          color: Color(0xFFE8C352),
+          offset: Offset(0, -0.5),
+          blurRadius: 0,
+        ),
+        // Bottom shadow (deep amber) — simulates depth of the engraving's lower edge
+        Shadow(
+          color: Color(0xFF8B6508),
+          offset: Offset(0, 1),
+          blurRadius: 1,
+        ),
+      ],
+    );
+  }
 }

@@ -12,6 +12,16 @@ class AppColors {
   // Brand accent
   static const Color gold = Color(0xFFD4A017);
 
+  // Tuned gold palette for letterpress effect
+  // goldTuned is the base — slightly warmer, less saturated than flat #D4A017
+  static const Color goldTuned = Color(0xFFCDA349);
+  static const Color goldHighlight = Color(0xFFE8C352);
+  static const Color goldShadow = Color(0xFF8B6508);
+
+  // Card surface — one step off pure black for subtle depth
+  static const Color cardSurface = Color(0xFF141414);
+  static const Color cardSurfacePressed = Color(0xFF1C1C1C);
+
   // Secondary
   static const Color greyMuted = Color(0xFF8A8A8A);
 
