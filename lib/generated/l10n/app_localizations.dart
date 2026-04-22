@@ -181,6 +181,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Open settings'**
   String get settingsTooltip;
+
+  /// Pre-workout countdown phase label
+  ///
+  /// In en, this message translates to:
+  /// **'GET READY'**
+  String get phaseGetReady;
+
+  /// Work phase label
+  ///
+  /// In en, this message translates to:
+  /// **'WORK'**
+  String get phaseWork;
+
+  /// Rest phase label
+  ///
+  /// In en, this message translates to:
+  /// **'REST'**
+  String get phaseRest;
+
+  /// Final phase label shown when workout ends
+  ///
+  /// In en, this message translates to:
+  /// **'WORKOUT COMPLETE'**
+  String get phaseComplete;
+
+  /// Current round indicator
+  ///
+  /// In en, this message translates to:
+  /// **'ROUND {current} / {total}'**
+  String roundLabel(Object current, Object total);
 }
 
 class _AppLocalizationsDelegate

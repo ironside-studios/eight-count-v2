@@ -13,5 +13,10 @@
   "englishOption": "ENGLISH",
   "espanolOption": "ESPAÑOL",
   "backTooltip": "Atrás",
-  "settingsTooltip": "Abrir ajustes"
+  "settingsTooltip": "Abrir ajustes",
+  "phaseGetReady": "PREPÁRATE",
+  "phaseWork": "TRABAJO",
+  "phaseRest": "DESCANSO",
+  "phaseComplete": "ENTRENAMIENTO COMPLETO",
+  "roundLabel": "RONDA {current} / {total}"
 }

@@ -49,4 +49,21 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsTooltip => 'Open settings';
+
+  @override
+  String get phaseGetReady => 'GET READY';
+
+  @override
+  String get phaseWork => 'WORK';
+
+  @override
+  String get phaseRest => 'REST';
+
+  @override
+  String get phaseComplete => 'WORKOUT COMPLETE';
+
+  @override
+  String roundLabel(Object current, Object total) {
+    return 'ROUND $current / $total';
+  }
 }

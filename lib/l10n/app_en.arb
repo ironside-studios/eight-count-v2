@@ -27,5 +27,21 @@
   "backTooltip": "Back",
   "@backTooltip": { "description": "Accessibility tooltip on back arrow" },
   "settingsTooltip": "Open settings",
-  "@settingsTooltip": { "description": "Accessibility tooltip on gear icon" }
+  "@settingsTooltip": { "description": "Accessibility tooltip on gear icon" },
+  "phaseGetReady": "GET READY",
+  "@phaseGetReady": { "description": "Pre-workout countdown phase label" },
+  "phaseWork": "WORK",
+  "@phaseWork": { "description": "Work phase label" },
+  "phaseRest": "REST",
+  "@phaseRest": { "description": "Rest phase label" },
+  "phaseComplete": "WORKOUT COMPLETE",
+  "@phaseComplete": { "description": "Final phase label shown when workout ends" },
+  "roundLabel": "ROUND {current} / {total}",
+  "@roundLabel": {
+    "description": "Current round indicator",
+    "placeholders": {
+      "current": {},
+      "total": {}
+    }
+  }
 }
