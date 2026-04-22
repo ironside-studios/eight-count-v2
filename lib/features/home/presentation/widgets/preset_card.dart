@@ -45,8 +45,12 @@ class _PresetCardState extends State<PresetCard> {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 100),
           decoration: BoxDecoration(
-            color: _pressed ? AppColors.cardSurfacePressed : AppColors.cardSurface,
+            color: _pressed ? AppColors.surfaceCardPressed : AppColors.surfaceCard,
             borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: AppColors.borderGold,
+              width: 1,
+            ),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.4),

@@ -11,18 +11,21 @@ class AppColors {
   static const Color white = Color(0xFFFFFFFF);
 
   // Brand accent
-  // Locked 4/22/26 — premium polish pass
-  static const Color gold = Color(0xFFE5B842);
+  // Locked 4/22/26 — IMDb gold, OLED-calibrated
+  static const Color gold = Color(0xFFF5C518);
 
   // Tuned gold palette for letterpress effect
-  // goldTuned is the base — slightly warmer, less saturated than flat #D4A017
+  // goldTuned is the base — slightly warmer, less saturated than the flat accent
   static const Color goldTuned = Color(0xFFCDA349);
   static const Color goldHighlight = Color(0xFFE8C352);
   static const Color goldShadow = Color(0xFF8B6508);
 
   // Card surface — one step off pure black for subtle depth
-  static const Color cardSurface = Color(0xFF141414);
-  static const Color cardSurfacePressed = Color(0xFF1C1C1C);
+  static const Color surfaceCard = Color(0xFF141414);
+  static const Color surfaceCardPressed = Color(0xFF1C1C1C);
+
+  // 10% alpha of the brand accent — subtle card separator on OLED black
+  static const Color borderGold = Color(0x1AF5C518);
 
   // Secondary
   static const Color greyMuted = Color(0xFF8A8A8A);
