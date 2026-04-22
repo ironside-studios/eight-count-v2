@@ -6,6 +6,7 @@ import '../../../core/constants/app_spacing.dart';
 import '../../../core/services/locale_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/segmented_toggle.dart';
+import '../../../generated/l10n/app_localizations.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -16,7 +17,6 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   static const List<Locale> _locales = [Locale('en'), Locale('es')];
-  static const List<String> _labels = ['ENGLISH', 'ESPAÑOL'];
 
   int get _selectedIndex {
     final code = localeService.current.languageCode;
@@ -32,6 +32,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
       backgroundColor: AppColors.black,
       appBar: AppBar(
@@ -45,13 +46,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
             color: AppColors.gold,
             size: 24,
           ),
+          tooltip: l10n.backTooltip,
           onPressed: () {
             HapticFeedback.selectionClick();
             Navigator.of(context).pop();
           },
         ),
         title: Text(
-          'SETTINGS',
+          l10n.settingsTitle,
           style: AppTheme.displayFont(
             fontSize: 24,
             color: AppColors.gold,
@@ -73,10 +75,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const _SectionLabel(label: 'LANGUAGE'),
+              _SectionLabel(label: l10n.languageLabel),
               const SizedBox(height: AppSpacing.md),
               SegmentedToggle(
-                options: _labels,
+                options: [l10n.englishOption, l10n.espanolOption],
                 selectedIndex: _selectedIndex,
                 onChanged: _onLanguageChanged,
               ),

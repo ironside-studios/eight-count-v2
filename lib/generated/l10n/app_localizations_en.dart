@@ -1,0 +1,52 @@
+// ignore: unused_import
+import 'package:intl/intl.dart' as intl;
+import 'app_localizations.dart';
+
+// ignore_for_file: type=lint
+
+/// The translations for English (`en`).
+class AppLocalizationsEn extends AppLocalizations {
+  AppLocalizationsEn([String locale = 'en']) : super(locale);
+
+  @override
+  String get appTitle => '8 COUNT';
+
+  @override
+  String get boxingTitle => 'BOXING';
+
+  @override
+  String get boxingMeta => '12 rounds · 3:00 work · 1:00 rest';
+
+  @override
+  String get smokerTitle => 'SMOKER';
+
+  @override
+  String get smokerMeta => 'HIIT composite · boxing + burnout';
+
+  @override
+  String get customTitle => 'CUSTOM';
+
+  @override
+  String get customMeta => 'Build your own · 3 saved slots';
+
+  @override
+  String get proBadge => 'PRO';
+
+  @override
+  String get settingsTitle => 'SETTINGS';
+
+  @override
+  String get languageLabel => 'LANGUAGE';
+
+  @override
+  String get englishOption => 'ENGLISH';
+
+  @override
+  String get espanolOption => 'ESPAÑOL';
+
+  @override
+  String get backTooltip => 'Back';
+
+  @override
+  String get settingsTooltip => 'Open settings';
+}

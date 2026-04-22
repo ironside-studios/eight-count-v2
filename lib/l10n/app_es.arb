@@ -1,0 +1,17 @@
+{
+  "@@locale": "es",
+  "appTitle": "8 COUNT",
+  "boxingTitle": "BOXEO",
+  "boxingMeta": "12 rondas · 3:00 trabajo · 1:00 descanso",
+  "smokerTitle": "QUEMADOR",
+  "smokerMeta": "HIIT compuesto · boxeo + agotamiento",
+  "customTitle": "PERSONALIZADO",
+  "customMeta": "Crea el tuyo · 3 espacios guardados",
+  "proBadge": "PRO",
+  "settingsTitle": "AJUSTES",
+  "languageLabel": "IDIOMA",
+  "englishOption": "ENGLISH",
+  "espanolOption": "ESPAÑOL",
+  "backTooltip": "Atrás",
+  "settingsTooltip": "Abrir ajustes"
+}

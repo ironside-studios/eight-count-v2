@@ -12,14 +12,20 @@ void main() {
     await localeService.setLocale(const Locale('en'));
   });
 
-  Future<void> pumpAndNavigateToSettings(
-    WidgetTester tester,
-    Locale initialLocale,
-  ) async {
-    // Phone-portrait viewport — layout is designed for phones, not the 800x600 default.
+  void setPhoneViewport(WidgetTester tester) {
     tester.view.physicalSize = const Size(1080, 3200);
     tester.view.devicePixelRatio = 2.625;
     addTearDown(tester.view.reset);
+  }
+
+  Future<void> pumpAndNavigateToSettings(
+    WidgetTester tester, {
+    required Locale initialLocale,
+    required String expectedHomeBoxing,
+    required String expectedSettingsTitle,
+    required String expectedLanguageLabel,
+  }) async {
+    setPhoneViewport(tester);
 
     await localeService.setLocale(initialLocale);
 
@@ -27,24 +33,21 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('8 COUNT'), findsOneWidget);
+    expect(find.text(expectedHomeBoxing), findsOneWidget);
 
-    // Tap the Lucide gear icon — this is the path that previously crashed
-    // with "No MaterialLocalizations found" before the delegates were wired.
     await tester.tap(find.byIcon(LucideIcons.settings));
     await tester.pumpAndSettle();
 
-    expect(find.text('SETTINGS'), findsOneWidget);
-    expect(find.text('LANGUAGE'), findsOneWidget);
+    expect(find.text(expectedSettingsTitle), findsOneWidget);
+    expect(find.text(expectedLanguageLabel), findsOneWidget);
     expect(find.text('ENGLISH'), findsOneWidget);
     expect(find.text('ESPAÑOL'), findsOneWidget);
     expect(tester.takeException(), isNull);
   }
 
-  testWidgets('Home screen renders 8 COUNT + 3 preset cards, no EN/ES toggle',
+  testWidgets('Home screen — EN strings render, no EN/ES toggle, no subtitle',
       (WidgetTester tester) async {
-    tester.view.physicalSize = const Size(1080, 3200);
-    tester.view.devicePixelRatio = 2.625;
-    addTearDown(tester.view.reset);
+    setPhoneViewport(tester);
 
     await tester.pumpWidget(const EightCountApp());
     await tester.pumpAndSettle();
@@ -60,19 +63,53 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('Gear → SettingsScreen navigates without MaterialLocalizations crash (en)',
+  testWidgets('Gear → SettingsScreen navigates without crash (en)',
       (WidgetTester tester) async {
-    await pumpAndNavigateToSettings(tester, const Locale('en'));
+    await pumpAndNavigateToSettings(
+      tester,
+      initialLocale: const Locale('en'),
+      expectedHomeBoxing: 'BOXING',
+      expectedSettingsTitle: 'SETTINGS',
+      expectedLanguageLabel: 'LANGUAGE',
+    );
   });
 
-  testWidgets('Gear → SettingsScreen navigates without MaterialLocalizations crash (es)',
+  testWidgets('Gear → SettingsScreen navigates without crash (es)',
       (WidgetTester tester) async {
-    await pumpAndNavigateToSettings(tester, const Locale('es'));
+    await pumpAndNavigateToSettings(
+      tester,
+      initialLocale: const Locale('es'),
+      expectedHomeBoxing: 'BOXEO',
+      expectedSettingsTitle: 'AJUSTES',
+      expectedLanguageLabel: 'IDIOMA',
+    );
 
-    // And confirm the toggle still works end-to-end after navigating in es.
+    // Tapping ENGLISH inside the Spanish-mode settings screen
+    // flips the whole app back to English.
     await tester.tap(find.text('ENGLISH'));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
     expect(localeService.current, const Locale('en'));
+    expect(find.text('SETTINGS'), findsOneWidget);
+  });
+
+  testWidgets('Switching locale at runtime updates rendered text',
+      (WidgetTester tester) async {
+    setPhoneViewport(tester);
+
+    await tester.pumpWidget(const EightCountApp());
+    await tester.pumpAndSettle();
+
+    expect(find.text('BOXING'), findsOneWidget);
+    expect(find.text('BOXEO'), findsNothing);
+
+    await localeService.setLocale(const Locale('es'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('BOXING'), findsNothing);
+    expect(find.text('BOXEO'), findsOneWidget);
+    expect(find.text('QUEMADOR'), findsOneWidget);
+    expect(find.text('PERSONALIZADO'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }

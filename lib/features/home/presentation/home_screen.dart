@@ -4,6 +4,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../generated/l10n/app_localizations.dart';
 import '../../settings/presentation/settings_screen.dart';
 import 'widgets/preset_card.dart';
 
@@ -19,6 +20,7 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
       backgroundColor: AppColors.black,
       body: SafeArea(
@@ -28,17 +30,20 @@ class HomeScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(height: AppSpacing.md),
-              _Header(onGearTap: () => _openSettings(context)),
+              _Header(
+                onGearTap: () => _openSettings(context),
+                tooltip: l10n.settingsTooltip,
+              ),
               const SizedBox(height: AppSpacing.xxl),
-              const _BrandMark(),
+              _BrandMark(title: l10n.appTitle),
               const SizedBox(height: AppSpacing.xxl),
               Expanded(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     PresetCard(
-                      title: 'BOXING',
-                      subtitle: '12 rounds  ·  3:00 work  ·  1:00 rest',
+                      title: l10n.boxingTitle,
+                      subtitle: l10n.boxingMeta,
                       isLocked: false,
                       onTap: () {
                         HapticFeedback.mediumImpact();
@@ -47,8 +52,8 @@ class HomeScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: AppSpacing.base),
                     PresetCard(
-                      title: 'SMOKER',
-                      subtitle: 'HIIT composite  ·  boxing + burnout',
+                      title: l10n.smokerTitle,
+                      subtitle: l10n.smokerMeta,
                       isLocked: true,
                       onTap: () {
                         HapticFeedback.mediumImpact();
@@ -57,8 +62,8 @@ class HomeScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: AppSpacing.base),
                     PresetCard(
-                      title: 'CUSTOM',
-                      subtitle: 'Build your own  ·  3 saved slots',
+                      title: l10n.customTitle,
+                      subtitle: l10n.customMeta,
                       isLocked: true,
                       onTap: () {
                         HapticFeedback.mediumImpact();
@@ -78,9 +83,10 @@ class HomeScreen extends StatelessWidget {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.onGearTap});
+  const _Header({required this.onGearTap, required this.tooltip});
 
   final VoidCallback onGearTap;
+  final String tooltip;
 
   @override
   Widget build(BuildContext context) {
@@ -88,16 +94,17 @@ class _Header extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.end,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        _GearButton(onTap: onGearTap),
+        _GearButton(onTap: onGearTap, tooltip: tooltip),
       ],
     );
   }
 }
 
 class _GearButton extends StatefulWidget {
-  const _GearButton({required this.onTap});
+  const _GearButton({required this.onTap, required this.tooltip});
 
   final VoidCallback onTap;
+  final String tooltip;
 
   @override
   State<_GearButton> createState() => _GearButtonState();
@@ -108,22 +115,25 @@ class _GearButtonState extends State<_GearButton> {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTapDown: (_) => setState(() => _pressed = true),
-      onTapUp: (_) => setState(() => _pressed = false),
-      onTapCancel: () => setState(() => _pressed = false),
-      onTap: widget.onTap,
-      child: AnimatedScale(
-        scale: _pressed ? 0.92 : 1.0,
-        duration: const Duration(milliseconds: 100),
-        child: Container(
-          width: 48,
-          height: 48,
-          alignment: Alignment.center,
-          child: Icon(
-            LucideIcons.settings,
-            size: 36,
-            color: AppColors.gold,
+    return Tooltip(
+      message: widget.tooltip,
+      child: GestureDetector(
+        onTapDown: (_) => setState(() => _pressed = true),
+        onTapUp: (_) => setState(() => _pressed = false),
+        onTapCancel: () => setState(() => _pressed = false),
+        onTap: widget.onTap,
+        child: AnimatedScale(
+          scale: _pressed ? 0.92 : 1.0,
+          duration: const Duration(milliseconds: 100),
+          child: Container(
+            width: 48,
+            height: 48,
+            alignment: Alignment.center,
+            child: Icon(
+              LucideIcons.settings,
+              size: 36,
+              color: AppColors.gold,
+            ),
           ),
         ),
       ),
@@ -132,12 +142,14 @@ class _GearButtonState extends State<_GearButton> {
 }
 
 class _BrandMark extends StatelessWidget {
-  const _BrandMark();
+  const _BrandMark({required this.title});
+
+  final String title;
 
   @override
   Widget build(BuildContext context) {
     return Text(
-      '8 COUNT',
+      title,
       textAlign: TextAlign.center,
       style: AppTheme.displayFont(
         fontSize: 96,

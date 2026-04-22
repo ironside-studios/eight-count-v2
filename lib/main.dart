@@ -4,6 +4,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'core/services/locale_service.dart';
 import 'core/theme/app_theme.dart';
 import 'features/home/presentation/home_screen.dart';
+import 'generated/l10n/app_localizations.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -25,11 +26,9 @@ class EightCountApp extends StatelessWidget {
         debugShowCheckedModeBanner: false,
         theme: AppTheme.dark,
         locale: localeService.current,
-        supportedLocales: const [
-          Locale('en'),
-          Locale('es'),
-        ],
+        supportedLocales: AppLocalizations.supportedLocales,
         localizationsDelegates: const [
+          AppLocalizations.delegate,
           GlobalMaterialLocalizations.delegate,
           GlobalWidgetsLocalizations.delegate,
           GlobalCupertinoLocalizations.delegate,

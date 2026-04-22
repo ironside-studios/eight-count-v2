@@ -4,6 +4,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../generated/l10n/app_localizations.dart';
 
 /// Preset card — the core brand unit of the main screen.
 /// Gold left-edge bar = boxing belt stripe / earned status.
@@ -153,7 +154,7 @@ class _ProPill extends StatelessWidget {
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
-        'PRO',
+        AppLocalizations.of(context)!.proBadge,
         style: AppTheme.displayFont(
           fontSize: 12,
           color: AppColors.black,
