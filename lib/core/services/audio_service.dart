@@ -6,7 +6,7 @@ import 'package:just_audio/just_audio.dart';
 // TEMP: Step 5.3 — ALL audio muted pending re-recording session (bells, wood_clack, whistle).
 // User is re-recording all cues with iPhone 17 Pro Max + Dolby On for consistent quality.
 // Set false to re-enable. Files at assets/audio/ remain preloaded.
-const bool kAudioMuted = true;
+const bool kAudioMuted = false;
 
 /// Audio cue dispatcher.
 ///
