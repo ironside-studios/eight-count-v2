@@ -200,14 +200,7 @@ class WorkoutEngine extends ChangeNotifier {
 
     final remainingMs = _phaseEndsAt!.difference(_clock()).inMilliseconds;
 
-    // Step 5.3 Fix 1: skip the 11s warning cue when the phase itself is
-    // shorter than (or exactly at) the threshold — otherwise a short work
-    // or rest round would fire wood_clack at phase entry instead of as a
-    // pre-expiry warning. Guard is strict `>`, so phaseDuration == 11000ms
-    // also suppresses.
-    final int phaseDurationMs = _currentPhaseDuration().inMilliseconds;
-    if (phaseDurationMs > warningThresholdMs &&
-        remainingMs <= warningThresholdMs &&
+    if (remainingMs <= warningThresholdMs &&
         !_firedCueMsThresholds.contains(warningThresholdMs)) {
       _firedCueMsThresholds.add(warningThresholdMs);
       audio.play(cueWoodClack);

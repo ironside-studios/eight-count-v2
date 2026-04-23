@@ -3,9 +3,10 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 
-// TEMP: Step 5.3 — bells muted pending iPhone re-recording. Set false to re-enable.
-// Files at assets/audio/bell_start.mp3 and bell_end.mp3 remain preloaded.
-const bool kBellsMuted = true;
+// TEMP: Step 5.3 — ALL audio muted pending re-recording session (bells, wood_clack, whistle).
+// User is re-recording all cues with iPhone 17 Pro Max + Dolby On for consistent quality.
+// Set false to re-enable. Files at assets/audio/ remain preloaded.
+const bool kAudioMuted = true;
 
 /// Audio cue dispatcher.
 ///
@@ -164,14 +165,13 @@ class AudioService {
   /// Future completes after seek + play kickoff, not after playback ends.
   @protected
   Future<void> startPlayback(String cueName) async {
+    // Step 5.3 (revised): kill switch for ALL audio output pending the
+    // re-recording pass. Cues still flow through priority/queue so the
+    // state machine is unaffected — only the actual player.play() is
+    // skipped. Flip `kAudioMuted` to `false` once new assets ship.
+    if (kAudioMuted) return;
     final AudioPlayer? player = _players[cueName];
     if (player == null) return;
-    // Step 5.3 Fix 2: placeholder bells are muted until re-recording. The
-    // cue still flows through priority/queue so the state machine is
-    // unaffected — only the actual audio output is skipped.
-    if (kBellsMuted && (cueName == 'bell_start' || cueName == 'bell_end')) {
-      return;
-    }
     await player.seek(Duration.zero);
     unawaited(player.play());
   }
