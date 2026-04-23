@@ -33,6 +33,18 @@ const bool kAudioMuted = true;
 class AudioService {
   AudioService();
 
+  // --- Cue durations (normalized in Phase 1, 2026-04-23) ---
+  // Reference values for cue-scheduling math. Not wired to playback logic
+  // yet — runtime `player.duration` is still read from the loaded asset
+  // via `remainingFor(...)`. These constants exist so callers (engine,
+  // tests, future scheduler) have a stable source of truth that doesn't
+  // require loading the asset to consult.
+  static const Duration bellStartDuration = Duration(milliseconds: 2976);
+  static const Duration bellEndDuration = Duration(milliseconds: 3264);
+  static const Duration whistleLongDuration = Duration(milliseconds: 936);
+  static const Duration whistleDoubleDuration = Duration(milliseconds: 2040);
+  static const Duration woodClackDuration = Duration(milliseconds: 1896);
+
   // --- Static maps: cue identity, priority, asset path ---
 
   static const Map<String, int> _priority = <String, int>{
