@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:just_audio/just_audio.dart';
 
 // TEMP: Step 5.3 — ALL audio muted pending re-recording session (bells, wood_clack, whistle).
@@ -30,8 +30,34 @@ const bool kAudioMuted = false;
 /// Race safety: all [play] calls are funnelled through [_playChain] so the
 /// queue / priority state machine always sees a consistent snapshot, even
 /// under rapid-fire invocation.
-class AudioService {
-  AudioService();
+///
+/// Lifecycle (Step 5.4 — ghost-timer fix):
+///   Production code uses [AudioService.instance] exclusively. The
+///   [WidgetsBindingObserver] mixin hooks `AppLifecycleState.detached` so
+///   force-close triggers [stopAll], preventing `just_audio`'s native
+///   `ExoPlayer` from outliving the Dart VM. [stopAll] is also called from
+///   `TimerScreen.dispose` so orphaned cues sitting in the serial chain
+///   never fire on the home screen after a workout ends.
+class AudioService with WidgetsBindingObserver {
+  /// Generative constructor. Production code should use [AudioService.instance]
+  /// exclusively — this ctor is still callable so test subclasses can extend
+  /// `AudioService` via the standard implicit `super()` pattern.
+  AudioService() {
+    // Test contexts that don't call `TestWidgetsFlutterBinding.ensureInitialized`
+    // will throw when `WidgetsBinding.instance` is read; swallow so the
+    // subclass can still be constructed without a binding.
+    try {
+      WidgetsBinding.instance.addObserver(this);
+    } catch (_) {
+      /* No WidgetsBinding available — test context without binding init. */
+    }
+  }
+
+  /// App-wide singleton. Lazy-initialised on first access (Dart's standard
+  /// top-level `final` semantics). Every production caller routes through
+  /// this — the unnamed constructor stays callable only so that in-repo
+  /// test subclasses can extend the class without refactoring.
+  static final AudioService instance = AudioService();
 
   // --- Cue durations (normalized in Phase 1, 2026-04-23) ---
   // Reference values for cue-scheduling math. Not wired to playback logic
@@ -70,14 +96,19 @@ class AudioService {
   String? _currentCue;
   String? _queuedCue;
   bool _disposed = false;
+
+  /// Set by [stopAll] before flushing. Every in-flight [_executePlay] and
+  /// [handlePlaybackCompleted] early-returns while this is true, so futures
+  /// already `.then`'d onto [_playChain] become no-ops. Reset to false at
+  /// the end of [stopAll] so the service is reusable for the next workout.
+  bool _cancelled = false;
+
   Future<void> _playChain = Future<void>.value();
 
-  /// Currently-playing cue, or null if silent. Exposed for tests.
-  @visibleForTesting
+  /// Currently-playing cue, or null if silent.
   String? get currentCue => _currentCue;
 
-  /// Contents of the single queue slot (or null). Exposed for tests.
-  @visibleForTesting
+  /// Contents of the single queue slot (or null).
   String? get queuedCue => _queuedCue;
 
   /// Drains any in-flight [play] invocations. Used by tests to deterministically
@@ -114,6 +145,29 @@ class AudioService {
     return task;
   }
 
+  /// Halts all playback and cancels any queued / in-flight cues.
+  ///
+  /// Called on `TimerScreen.dispose` (so orphaned cues never fire on the
+  /// home screen after a workout ends) and on
+  /// `AppLifecycleState.detached` (so force-close doesn't leave
+  /// `just_audio`'s native `ExoPlayer` still playing). Idempotent and
+  /// reusable — the service is ready for the next workout once this
+  /// returns.
+  Future<void> stopAll() async {
+    _cancelled = true;
+    _currentCue = null;
+    _queuedCue = null;
+    for (final player in _players.values) {
+      try {
+        await player.stop();
+      } catch (_) {
+        /* Player may already be stopped or disposed — teardown is best-effort. */
+      }
+    }
+    _playChain = Future<void>.value();
+    _cancelled = false;
+  }
+
   /// Releases all players + subscriptions; cancels any queued/current cue.
   /// Idempotent.
   Future<void> dispose() async {
@@ -122,6 +176,12 @@ class AudioService {
     _queuedCue = null;
     final String? wasCurrent = _currentCue;
     _currentCue = null;
+
+    try {
+      WidgetsBinding.instance.removeObserver(this);
+    } catch (_) {
+      /* No binding available — same guard as the constructor. */
+    }
 
     for (final sub in _subscriptions.values) {
       await sub.cancel();
@@ -144,6 +204,18 @@ class AudioService {
       }
     }
     _players.clear();
+  }
+
+  // --- App lifecycle ---
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Stop ONLY on detached (process teardown). On `paused` / `inactive`
+    // the app may still need cues to ring through the lock screen or
+    // during a phone call — this is a boxing timer, not a media app.
+    if (state == AppLifecycleState.detached) {
+      unawaited(stopAll());
+    }
   }
 
   // --- Hooks: overridable by test subclasses to stub out the platform layer ---
@@ -213,6 +285,7 @@ class AudioService {
   /// subclasses call it directly to simulate a cue finishing.
   @protected
   void handlePlaybackCompleted(String cueName) {
+    if (_cancelled) return;
     if (_disposed) return;
     if (_currentCue != cueName) return; // stale notification
     _currentCue = null;
@@ -228,6 +301,7 @@ class AudioService {
   // --- Internals ---
 
   Future<void> _executePlay(String newCue) async {
+    if (_cancelled) return;
     if (_disposed) return;
     final int newPrio = _priority[newCue]!;
 
