@@ -5,93 +5,67 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-/// Stepper widget used by the custom-preset editor.
+/// Shared stepper used by the Custom-preset editor for rounds + work + rest.
 ///
-/// [-] [value] [+] horizontal row. Tap to step by one "unit" (unit size is
-/// dynamic — e.g., work duration uses 5s steps under 60s, 10s 60-300s, 30s
-/// above). Long-press on either button accelerates: first tick 100ms, then
-/// 50ms after 1s. Bound-hit fires [HapticFeedback.heavyImpact] and stops
-/// the accel. Every normal step fires [HapticFeedback.lightImpact].
-class NumberStepper extends StatefulWidget {
-  const NumberStepper({
+/// Behaviour:
+///   - Single tap  → step by `stepRamp[0]` (the slow tick).
+///   - Long-press  → ramp:
+///       * first 500 ms of hold   → `stepRamp[0]` every 100 ms
+///       * 500 ms – 1500 ms       → `stepRamp[1]` every 100 ms
+///       * after 1500 ms          → `stepRamp[2]` every 100 ms
+///   - Bound-hit   → [HapticFeedback.heavyImpact] + stops the accel.
+///   - Every applied step fires [HapticFeedback.lightImpact].
+///
+/// Examples:
+///   - rounds:  stepRamp: [1, 2, 5]
+///   - work:    stepRamp: [1, 5, 10]
+///   - rest:    stepRamp: [1, 5, 10]
+class AcceleratingStepper extends StatefulWidget {
+  const AcceleratingStepper({
     super.key,
     required this.value,
     required this.min,
     required this.max,
     required this.onChanged,
-    required this.stepFor,
+    required this.stepRamp,
     this.display,
     this.label,
-  });
+  }) : assert(stepRamp.length == 3,
+            'stepRamp must be exactly [slow, medium, fast]');
 
   final int value;
   final int min;
   final int max;
-
-  /// Callback fired on each step. Parent widget owns the state.
   final ValueChanged<int> onChanged;
 
-  /// Returns the step size to apply when the user taps +/- while the
-  /// current value is [currentValue]. Used to produce the 5s/10s/30s
-  /// bucket behaviour on duration pickers.
-  final int Function(int currentValue) stepFor;
+  /// `[slow, medium, fast]` — step sizes applied at the three ramp tiers.
+  /// Single-tap uses `stepRamp[0]`.
+  final List<int> stepRamp;
 
-  /// Optional display formatter (e.g., `formatMmSs`).
+  /// Optional display formatter (e.g. `formatMmSs` for MM:SS).
   final String Function(int)? display;
 
-  /// Optional label rendered above the stepper (e.g., "ROUNDS").
+  /// Optional label rendered above the +/- row (e.g. "ROUNDS").
   final String? label;
 
   @override
-  State<NumberStepper> createState() => _NumberStepperState();
+  State<AcceleratingStepper> createState() => _AcceleratingStepperState();
 }
 
-class _NumberStepperState extends State<NumberStepper> {
-  Timer? _accelTimer;
-
-  @override
-  void dispose() {
-    _accelTimer?.cancel();
-    super.dispose();
-  }
-
-  void _step({required bool increasing}) {
-    final int step = widget.stepFor(widget.value);
-    final int candidate = increasing
-        ? widget.value + step
-        : widget.value - step;
+class _AcceleratingStepperState extends State<AcceleratingStepper> {
+  /// Returns `true` if the step was applied; `false` if a bound was hit
+  /// (the caller uses this to stop any ongoing accel).
+  bool _apply(int step, {required bool increasing}) {
+    final int candidate =
+        increasing ? widget.value + step : widget.value - step;
     final int clamped = candidate.clamp(widget.min, widget.max);
     if (clamped == widget.value) {
-      // At bound — heavy haptic, stop any accel.
       HapticFeedback.heavyImpact();
-      _stopAccel();
-      return;
+      return false;
     }
     HapticFeedback.lightImpact();
     widget.onChanged(clamped);
-  }
-
-  void _startAccel({required bool increasing}) {
-    _accelTimer?.cancel();
-    int ticks = 0;
-    _accelTimer = Timer.periodic(const Duration(milliseconds: 100), (t) {
-      _step(increasing: increasing);
-      if (_accelTimer == null) return; // _step hit bound and cancelled us
-      ticks++;
-      if (ticks == 10) {
-        // 1s elapsed at 100ms intervals → switch to 50ms.
-        t.cancel();
-        _accelTimer = Timer.periodic(
-          const Duration(milliseconds: 50),
-          (_) => _step(increasing: increasing),
-        );
-      }
-    });
-  }
-
-  void _stopAccel() {
-    _accelTimer?.cancel();
-    _accelTimer = null;
+    return true;
   }
 
   @override
@@ -120,9 +94,8 @@ class _NumberStepperState extends State<NumberStepper> {
           children: [
             _StepperButton(
               icon: LucideIcons.minus,
-              onTap: () => _step(increasing: false),
-              onLongPressStart: () => _startAccel(increasing: false),
-              onLongPressEnd: _stopAccel,
+              stepRamp: widget.stepRamp,
+              onStep: (step) => _apply(step, increasing: false),
               isDisabled: widget.value <= widget.min,
             ),
             const SizedBox(width: 24),
@@ -143,9 +116,8 @@ class _NumberStepperState extends State<NumberStepper> {
             const SizedBox(width: 24),
             _StepperButton(
               icon: LucideIcons.plus,
-              onTap: () => _step(increasing: true),
-              onLongPressStart: () => _startAccel(increasing: true),
-              onLongPressEnd: _stopAccel,
+              stepRamp: widget.stepRamp,
+              onStep: (step) => _apply(step, increasing: true),
               isDisabled: widget.value >= widget.max,
             ),
           ],
@@ -158,16 +130,17 @@ class _NumberStepperState extends State<NumberStepper> {
 class _StepperButton extends StatefulWidget {
   const _StepperButton({
     required this.icon,
-    required this.onTap,
-    required this.onLongPressStart,
-    required this.onLongPressEnd,
+    required this.stepRamp,
+    required this.onStep,
     required this.isDisabled,
   });
 
   final IconData icon;
-  final VoidCallback onTap;
-  final VoidCallback onLongPressStart;
-  final VoidCallback onLongPressEnd;
+  final List<int> stepRamp;
+
+  /// Returns `true` if the step landed; `false` if at bound so the button
+  /// can stop the hold timer.
+  final bool Function(int step) onStep;
   final bool isDisabled;
 
   @override
@@ -175,22 +148,65 @@ class _StepperButton extends StatefulWidget {
 }
 
 class _StepperButtonState extends State<_StepperButton> {
+  Timer? _holdTimer;
+  final Stopwatch _holdStopwatch = Stopwatch();
   bool _pressed = false;
+
+  int _currentStep() {
+    final int ms = _holdStopwatch.elapsedMilliseconds;
+    final ramp = widget.stepRamp;
+    if (ms < 500) return ramp[0];
+    if (ms < 1500) return ramp[1];
+    return ramp[2];
+  }
+
+  void _handleTap() {
+    widget.onStep(widget.stepRamp[0]);
+  }
+
+  void _startHold() {
+    _stopHold();
+    _holdStopwatch
+      ..reset()
+      ..start();
+    // Immediate tick so the hold feels responsive — fires at the slow step.
+    final applied = widget.onStep(widget.stepRamp[0]);
+    if (!applied) {
+      _holdStopwatch.stop();
+      return;
+    }
+    _holdTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
+      final ok = widget.onStep(_currentStep());
+      if (!ok) _stopHold();
+    });
+  }
+
+  void _stopHold() {
+    _holdTimer?.cancel();
+    _holdTimer = null;
+    _holdStopwatch.stop();
+  }
+
+  @override
+  void dispose() {
+    _stopHold();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final Color gold = const Color(0xFFF5C518);
-    final Color disabled = gold.withValues(alpha: 0.3);
-    final Color color = widget.isDisabled ? disabled : gold;
+    const Color gold = Color(0xFFF5C518);
+    final Color color =
+        widget.isDisabled ? gold.withValues(alpha: 0.3) : gold;
 
     return GestureDetector(
       onTapDown: (_) => setState(() => _pressed = true),
       onTapUp: (_) => setState(() => _pressed = false),
       onTapCancel: () => setState(() => _pressed = false),
-      onTap: widget.onTap,
-      onLongPressStart: (_) => widget.onLongPressStart(),
-      onLongPressEnd: (_) => widget.onLongPressEnd(),
-      onLongPressCancel: widget.onLongPressEnd,
+      onTap: _handleTap,
+      onLongPressStart: (_) => _startHold(),
+      onLongPressEnd: (_) => _stopHold(),
+      onLongPressCancel: _stopHold,
       behavior: HitTestBehavior.opaque,
       child: AnimatedScale(
         scale: _pressed ? 0.94 : 1.0,

@@ -8,7 +8,7 @@ import '../../../core/utils/time_format.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../domain/custom_preset.dart';
 import 'custom_preset_controller.dart';
-import 'widgets/number_stepper.dart';
+import 'widgets/accelerating_stepper.dart';
 
 /// Create / edit screen. Pass `null` to create; pass a [CustomPreset] to
 /// edit. Accessed via `context.push('/custom/edit', extra: preset?)`.
@@ -70,15 +70,6 @@ class _CustomPresetEditorScreenState extends State<CustomPresetEditorScreen> {
       );
 
   bool get _isValid => _validationError == null;
-
-  // --- Duration step buckets ---
-  int _workStepFor(int v) {
-    if (v < 60) return 5;
-    if (v < 300) return 10;
-    return 30;
-  }
-
-  int _restStepFor(int v) => v < 60 ? 5 : 10;
 
   Future<void> _handleSave() async {
     final error = _validationError;
@@ -211,13 +202,16 @@ class _CustomPresetEditorScreenState extends State<CustomPresetEditorScreen> {
               if (ok && context.mounted) context.pop();
             },
           ),
-          title: Text(
-            isEdit ? l10n.editWorkout : l10n.newWorkout,
-            style: GoogleFonts.bebasNeue(
-              fontSize: 24,
-              fontWeight: FontWeight.w700,
-              color: const Color(0xFFF5C518),
-              letterSpacing: 3,
+          title: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              isEdit ? l10n.editWorkout : l10n.newWorkout,
+              style: GoogleFonts.bebasNeue(
+                fontSize: 24,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFFF5C518),
+                letterSpacing: 3,
+              ),
             ),
           ),
           centerTitle: true,
@@ -251,30 +245,32 @@ class _CustomPresetEditorScreenState extends State<CustomPresetEditorScreen> {
                   hintText: l10n.workoutName,
                 ),
                 const SizedBox(height: 32),
-                NumberStepper(
+                AcceleratingStepper(
                   value: _rounds,
                   min: CustomPreset.kMinRounds,
                   max: CustomPreset.kMaxRounds,
-                  stepFor: (_) => 1,
+                  // Tap: 1 round. Hold: 1 → 2 → 5 per tier.
+                  stepRamp: const [1, 2, 5],
                   label: l10n.rounds,
                   onChanged: (v) => setState(() => _rounds = v),
                 ),
                 const SizedBox(height: 32),
-                NumberStepper(
+                AcceleratingStepper(
                   value: _workSeconds,
                   min: CustomPreset.kMinWorkSeconds,
                   max: CustomPreset.kMaxWorkSeconds,
-                  stepFor: _workStepFor,
+                  // Tap: 1s. Hold: 1 → 5 → 10 per tier.
+                  stepRamp: const [1, 5, 10],
                   display: formatMmSs,
                   label: l10n.work,
                   onChanged: (v) => setState(() => _workSeconds = v),
                 ),
                 const SizedBox(height: 32),
-                NumberStepper(
+                AcceleratingStepper(
                   value: _restSeconds,
                   min: CustomPreset.kMinRestSeconds,
                   max: CustomPreset.kMaxRestSeconds,
-                  stepFor: _restStepFor,
+                  stepRamp: const [1, 5, 10],
                   display: formatMmSs,
                   label: l10n.rest,
                   onChanged: (v) => setState(() => _restSeconds = v),
@@ -305,48 +301,39 @@ class _NameField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final remaining = CustomPreset.kMaxNameLength - controller.text.length;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        TextField(
-          controller: controller,
-          maxLength: CustomPreset.kMaxNameLength,
-          maxLengthEnforcement: MaxLengthEnforcement.enforced,
-          style: GoogleFonts.inter(
-            fontSize: 18,
-            color: const Color(0xFFFFFFFF),
-          ),
-          cursorColor: const Color(0xFFF5C518),
-          decoration: InputDecoration(
-            hintText: hintText,
-            hintStyle: GoogleFonts.inter(
-              fontSize: 18,
-              color: const Color(0xFF8A8A8A),
-            ),
-            counterText: '',
-            isDense: true,
-            contentPadding: const EdgeInsets.symmetric(vertical: 12),
-            enabledBorder: const UnderlineInputBorder(
-              borderSide: BorderSide(color: Color(0xFF1F1F1F), width: 1),
-            ),
-            focusedBorder: const UnderlineInputBorder(
-              borderSide: BorderSide(color: Color(0xFFF5C518), width: 1),
-            ),
-          ),
+    return TextField(
+      controller: controller,
+      maxLength: CustomPreset.kMaxNameLength,
+      maxLengthEnforcement: MaxLengthEnforcement.enforced,
+      // Suppress Flutter's built-in counter; no visible character counter
+      // on the editor per Step 5.1 Fix 2.
+      buildCounter: (
+        _, {
+        required int currentLength,
+        required bool isFocused,
+        int? maxLength,
+      }) =>
+          null,
+      style: GoogleFonts.inter(
+        fontSize: 18,
+        color: const Color(0xFFFFFFFF),
+      ),
+      cursorColor: const Color(0xFFF5C518),
+      decoration: InputDecoration(
+        hintText: hintText,
+        hintStyle: GoogleFonts.inter(
+          fontSize: 18,
+          color: const Color(0xFF8A8A8A),
         ),
-        const SizedBox(height: 4),
-        Align(
-          alignment: Alignment.centerRight,
-          child: Text(
-            '$remaining',
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              color: const Color(0xFF8A8A8A),
-            ),
-          ),
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(vertical: 12),
+        enabledBorder: const UnderlineInputBorder(
+          borderSide: BorderSide(color: Color(0xFF1F1F1F), width: 1),
         ),
-      ],
+        focusedBorder: const UnderlineInputBorder(
+          borderSide: BorderSide(color: Color(0xFFF5C518), width: 1),
+        ),
+      ),
     );
   }
 }

@@ -184,13 +184,16 @@ class _CustomPresetListScreenState extends State<CustomPresetListScreen> {
             context.pop();
           },
         ),
-        title: Text(
-          l10n.customWorkouts,
-          style: GoogleFonts.bebasNeue(
-            fontSize: 24,
-            fontWeight: FontWeight.w700,
-            color: const Color(0xFFF5C518),
-            letterSpacing: 3,
+        title: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            l10n.customWorkouts,
+            style: GoogleFonts.bebasNeue(
+              fontSize: 24,
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFFF5C518),
+              letterSpacing: 3,
+            ),
           ),
         ),
         centerTitle: true,
@@ -249,6 +252,9 @@ class _EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+    // Step 5.1 Fix 1: icon removed — pure typographic empty state. Column
+    // is vertically centered by the outer Center widget; the header reads
+    // as the dominant element without the gold-bordered square.
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -256,19 +262,6 @@ class _EmptyState extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 120,
-              height: 120,
-              decoration: BoxDecoration(
-                border: Border.all(
-                    color: const Color(0xFFF5C518), width: 1.5),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              alignment: Alignment.center,
-              child: Icon(LucideIcons.dumbbell,
-                  size: 56, color: const Color(0xFFF5C518)),
-            ),
-            const SizedBox(height: 32),
             Text(
               l10n.noWorkoutsYet,
               textAlign: TextAlign.center,
