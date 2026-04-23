@@ -105,4 +105,65 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get doneAction => 'DONE';
+
+  @override
+  String get customWorkouts => 'Custom Workouts';
+
+  @override
+  String get newWorkout => 'New Workout';
+
+  @override
+  String get editWorkout => 'Edit Workout';
+
+  @override
+  String get workoutName => 'Workout name';
+
+  @override
+  String get rounds => 'ROUNDS';
+
+  @override
+  String get work => 'WORK';
+
+  @override
+  String get rest => 'REST';
+
+  @override
+  String get save => 'Save';
+
+  @override
+  String get delete => 'Delete';
+
+  @override
+  String get edit => 'Edit';
+
+  @override
+  String get createWorkout => 'Create Workout';
+
+  @override
+  String get noWorkoutsYet => 'No Workouts Yet';
+
+  @override
+  String get createFirstWorkoutCta =>
+      'Create your first custom workout to get started';
+
+  @override
+  String get preCountdownLocked => 'Pre-workout countdown: 45 seconds (locked)';
+
+  @override
+  String get deleteConfirmTitle => 'Delete this workout?';
+
+  @override
+  String get deleteConfirmBody => 'This cannot be undone.';
+
+  @override
+  String get cancel => 'Cancel';
+
+  @override
+  String get unsavedChangesTitle => 'Discard changes?';
+
+  @override
+  String get unsavedChangesBody => 'Your changes will be lost.';
+
+  @override
+  String get discard => 'Discard';
 }

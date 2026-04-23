@@ -289,6 +289,126 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'DONE'**
   String get doneAction;
+
+  /// Title of the saved-custom-presets list screen
+  ///
+  /// In en, this message translates to:
+  /// **'Custom Workouts'**
+  String get customWorkouts;
+
+  /// Editor title when creating a new preset
+  ///
+  /// In en, this message translates to:
+  /// **'New Workout'**
+  String get newWorkout;
+
+  /// Editor title when editing an existing preset
+  ///
+  /// In en, this message translates to:
+  /// **'Edit Workout'**
+  String get editWorkout;
+
+  /// Editor name field hint text
+  ///
+  /// In en, this message translates to:
+  /// **'Workout name'**
+  String get workoutName;
+
+  /// Stepper label above the rounds picker
+  ///
+  /// In en, this message translates to:
+  /// **'ROUNDS'**
+  String get rounds;
+
+  /// Stepper label above the work-duration picker
+  ///
+  /// In en, this message translates to:
+  /// **'WORK'**
+  String get work;
+
+  /// Stepper label above the rest-duration picker
+  ///
+  /// In en, this message translates to:
+  /// **'REST'**
+  String get rest;
+
+  /// AppBar Save action in the preset editor
+  ///
+  /// In en, this message translates to:
+  /// **'Save'**
+  String get save;
+
+  /// Destructive action in the preset long-press bottom sheet and confirm dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Delete'**
+  String get delete;
+
+  /// Edit action in the preset long-press bottom sheet
+  ///
+  /// In en, this message translates to:
+  /// **'Edit'**
+  String get edit;
+
+  /// Primary CTA shown in both the empty-state and the list's create row
+  ///
+  /// In en, this message translates to:
+  /// **'Create Workout'**
+  String get createWorkout;
+
+  /// Empty-state headline when no custom presets are saved
+  ///
+  /// In en, this message translates to:
+  /// **'No Workouts Yet'**
+  String get noWorkoutsYet;
+
+  /// Empty-state supporting copy
+  ///
+  /// In en, this message translates to:
+  /// **'Create your first custom workout to get started'**
+  String get createFirstWorkoutCta;
+
+  /// Editor footnote reminding users the 45s warmup is fixed
+  ///
+  /// In en, this message translates to:
+  /// **'Pre-workout countdown: 45 seconds (locked)'**
+  String get preCountdownLocked;
+
+  /// Destructive confirmation dialog title
+  ///
+  /// In en, this message translates to:
+  /// **'Delete this workout?'**
+  String get deleteConfirmTitle;
+
+  /// Destructive confirmation dialog body
+  ///
+  /// In en, this message translates to:
+  /// **'This cannot be undone.'**
+  String get deleteConfirmBody;
+
+  /// Generic cancel action in dialogs
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get cancel;
+
+  /// Editor back-nav confirmation dialog title
+  ///
+  /// In en, this message translates to:
+  /// **'Discard changes?'**
+  String get unsavedChangesTitle;
+
+  /// Editor back-nav confirmation dialog body
+  ///
+  /// In en, this message translates to:
+  /// **'Your changes will be lost.'**
+  String get unsavedChangesBody;
+
+  /// Destructive action in the unsaved-changes dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Discard'**
+  String get discard;
 }
 
 class _AppLocalizationsDelegate

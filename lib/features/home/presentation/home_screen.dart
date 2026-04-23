@@ -64,8 +64,11 @@ class HomeScreen extends StatelessWidget {
                       subtitle: l10n.customMeta,
                       isLocked: true,
                       onTap: () {
-                        HapticFeedback.mediumImpact();
-                        // Paywall — wired in a later step
+                        // TODO(pro-gate): mirror Smoker's Pro gate once it
+                        // exists. Until then, route unconditionally — Step
+                        // 5 spec's documented fallback. PresetCard's own
+                        // GestureDetector already fires mediumImpact.
+                        context.push('/custom');
                       },
                     ),
                   ],
