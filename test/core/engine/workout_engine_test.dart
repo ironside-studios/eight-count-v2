@@ -298,6 +298,98 @@ void main() {
     expect(engine.state.phase, WorkoutPhase.complete);
   });
 
+  test(
+      'phase duration ≤ warningThresholdMs suppresses wood_clack for that '
+      'phase (boundary is strict >, so 11s is suppressed)', () {
+    // Helper: builds a fresh engine with custom work/rest seconds, runs
+    // through the full workout, and returns per-phase wood_clack counts
+    // attributed to preCountdown / work / rest.
+    Map<String, int> runAndAttribute({
+      required int workSeconds,
+      required int restSeconds,
+      int rounds = 12,
+    }) {
+      final testAudio = FakeAudioService();
+      final testClock = TestClock(DateTime.utc(2026, 1, 1, 12));
+      final testEngine = WorkoutEngine(
+        config: WorkoutConfig(
+          presetId: 'test',
+          totalRounds: rounds,
+          workDuration: Duration(seconds: workSeconds),
+          restDuration: Duration(seconds: restSeconds),
+          preCountdown: const Duration(seconds: 45),
+        ),
+        audio: testAudio,
+        clock: testClock.now,
+      );
+
+      int clacksDuringPhase(void Function() advance) {
+        final before = testAudio.playedCues
+            .where((c) => c == WorkoutEngine.cueWoodClack)
+            .length;
+        advance();
+        final after = testAudio.playedCues
+            .where((c) => c == WorkoutEngine.cueWoodClack)
+            .length;
+        return after - before;
+      }
+
+      testEngine.start();
+
+      // preCountdown (always 45s > 11s, should fire).
+      final preCount = clacksDuringPhase(() {
+        testClock.advance(const Duration(seconds: 45));
+        testEngine.debugTick();
+      });
+
+      int workTotal = 0;
+      int restTotal = 0;
+      for (int r = 1; r <= rounds; r++) {
+        workTotal += clacksDuringPhase(() {
+          testClock.advance(Duration(seconds: workSeconds));
+          testEngine.debugTick();
+        });
+        if (r < rounds) {
+          restTotal += clacksDuringPhase(() {
+            testClock.advance(Duration(seconds: restSeconds));
+            testEngine.debugTick();
+          });
+        }
+      }
+
+      testEngine.dispose();
+      return {
+        'preCountdown': preCount,
+        'work': workTotal,
+        'rest': restTotal,
+      };
+    }
+
+    // Case a: work=10s (≤11, suppressed), rest=30s (>11, fires).
+    final caseA = runAndAttribute(workSeconds: 10, restSeconds: 30);
+    expect(caseA['work'], 0,
+        reason: 'work=10s is too short → wood_clack suppressed on every work');
+    expect(caseA['rest'], 11,
+        reason: 'rest=30s fires normally on all 11 rest phases (no rest after R12)');
+    expect(caseA['preCountdown'], 1, reason: 'preCountdown always fires at 45s');
+
+    // Case b: work=180s (>11, fires), rest=10s (≤11, suppressed).
+    final caseB = runAndAttribute(workSeconds: 180, restSeconds: 10);
+    expect(caseB['work'], 12,
+        reason: 'work=180s fires once per work phase (12 rounds)');
+    expect(caseB['rest'], 0,
+        reason: 'rest=10s is too short → wood_clack suppressed on every rest');
+    expect(caseB['preCountdown'], 1);
+
+    // Case c: boundary — 11s exactly. Guard is strict `>`, so 11 is NOT > 11.
+    final caseC = runAndAttribute(workSeconds: 11, restSeconds: 11);
+    expect(caseC['work'], 0,
+        reason: 'work=11s is at the boundary → suppressed (guard is strict >)');
+    expect(caseC['rest'], 0,
+        reason: 'rest=11s is at the boundary → suppressed');
+    expect(caseC['preCountdown'], 1);
+  });
+
   test('Boxing: final round fires bell_end exactly once (no double bell)',
       () {
     engine.start();
