@@ -27,15 +27,14 @@ Color colorForPhase(WorkoutPhase phase) {
 
 /// Color for the big digit and the phase label text.
 ///
-/// Pre-countdown uses gold — the whole screen reads as the "brand hype"
-/// moment before the workout begins. Work and rest use white for maximum
-/// OLED contrast and fast glance-reads; the ring (via [colorForPhase])
-/// carries phase state on its own. [WorkoutPhase.complete] never renders
-/// on this screen.
+/// All phases use white for the digit + phase label (locked 4/22/26 — was
+/// gold for preCountdown in 3.2.1.2, changed for cross-phase consistency).
+/// The ring color still varies by phase via [colorForPhase] — that's the
+/// single carrier of phase state. Kept as a function (not a constant) so
+/// Smoker (Step 6) can override per-block if its design calls for it.
 Color digitColorForPhase(WorkoutPhase phase) {
   switch (phase) {
     case WorkoutPhase.preCountdown:
-      return phaseColorPreCountdown;
     case WorkoutPhase.work:
     case WorkoutPhase.rest:
     case WorkoutPhase.complete:
