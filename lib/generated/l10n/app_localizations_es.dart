@@ -166,4 +166,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get discard => 'Descartar';
+
+  @override
+  String get workoutNotFound => 'Entrenamiento no encontrado';
 }

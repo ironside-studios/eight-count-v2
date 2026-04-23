@@ -39,9 +39,18 @@ import 'package:eight_count/main.dart' show audioService;
 ///   - bell_end on work-phase EXIT (every round, including final)
 ///   - rest-entry is SILENT (whistle_long is reserved for Smoker)
 class TimerScreen extends StatefulWidget {
-  const TimerScreen({super.key, required this.presetId});
+  const TimerScreen({
+    super.key,
+    required this.presetId,
+    this.overrideConfig,
+  });
 
   final String presetId;
+
+  /// Optional preset override. When non-null, this config drives the engine
+  /// directly — used by the Custom-preset route (Step 5.2). When null, the
+  /// screen falls back to the original presetId-keyed behaviour (Boxing).
+  final WorkoutConfig? overrideConfig;
 
   @override
   State<TimerScreen> createState() => _TimerScreenState();
@@ -59,7 +68,16 @@ class _TimerScreenState extends State<TimerScreen> {
     // timer + missed cues. Failure is swallowed via catchError so wakelock
     // can never crash the flow.
     unawaited(_safeWakelock(enable: true));
-    if (widget.presetId == 'boxing') {
+    if (widget.overrideConfig != null) {
+      // Step 5.2: Custom-preset route passes the saved preset's config
+      // directly; no presetId-based lookup. Takes precedence over the
+      // Boxing branch by design (a caller passing both wants the override).
+      _engine = WorkoutEngine(
+        config: widget.overrideConfig!,
+        audio: audioService,
+      );
+      _engine!.addListener(_onEngineChange);
+    } else if (widget.presetId == 'boxing') {
       _engine = WorkoutEngine(
         config: WorkoutConfig.boxing(),
         audio: audioService,

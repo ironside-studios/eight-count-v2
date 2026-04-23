@@ -33,18 +33,7 @@ class _CustomPresetListScreenState extends State<CustomPresetListScreen> {
 
   void _onPresetTap(BuildContext context, CustomPreset preset) {
     HapticFeedback.lightImpact();
-    // Step 5 defers the timer launch wiring — TimerScreen is locked at
-    // Step 3.2.2 and only accepts presetId == 'boxing' today. Running a
-    // CustomPreset end-to-end lands in Step 5.1 once the screen unlocks.
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Running custom presets lands when TimerScreen unlocks '
-          '(preset: ${preset.name})',
-        ),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    context.push('/timer/custom/${preset.id}');
   }
 
   Future<void> _onPresetLongPress(

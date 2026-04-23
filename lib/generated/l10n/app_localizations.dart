@@ -409,6 +409,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Discard'**
   String get discard;
+
+  /// SnackBar shown when /timer/custom/:id resolves to a preset that no longer exists (deleted between tap and navigation, bad deep link, etc.)
+  ///
+  /// In en, this message translates to:
+  /// **'Workout not found'**
+  String get workoutNotFound;
 }
 
 class _AppLocalizationsDelegate

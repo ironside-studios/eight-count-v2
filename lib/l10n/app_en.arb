@@ -109,5 +109,7 @@
   "unsavedChangesBody": "Your changes will be lost.",
   "@unsavedChangesBody": { "description": "Editor back-nav confirmation dialog body" },
   "discard": "Discard",
-  "@discard": { "description": "Destructive action in the unsaved-changes dialog" }
+  "@discard": { "description": "Destructive action in the unsaved-changes dialog" },
+  "workoutNotFound": "Workout not found",
+  "@workoutNotFound": { "description": "SnackBar shown when /timer/custom/:id resolves to a preset that no longer exists (deleted between tap and navigation, bad deep link, etc.)" }
 }

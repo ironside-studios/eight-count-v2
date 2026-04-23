@@ -51,5 +51,6 @@
   "cancel": "Cancelar",
   "unsavedChangesTitle": "¿Descartar cambios?",
   "unsavedChangesBody": "Se perderán tus cambios.",
-  "discard": "Descartar"
+  "discard": "Descartar",
+  "workoutNotFound": "Entrenamiento no encontrado"
 }

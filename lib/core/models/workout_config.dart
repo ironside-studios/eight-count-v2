@@ -27,6 +27,25 @@ class WorkoutConfig {
         preCountdown: Duration(seconds: 45),
       );
 
+  /// Custom (user-defined) preset. `presetId` is fixed to `'custom'` —
+  /// the caller's CustomPreset.id is an identity/storage concern, not a
+  /// cue-routing one. Integer seconds are wrapped into [Duration].
+  /// `preCountdownSeconds` defaults to 45 (app-wide warmup contract); the
+  /// Step 5 editor doesn't expose it but the field is honored if supplied.
+  factory WorkoutConfig.custom({
+    required int rounds,
+    required int workSeconds,
+    required int restSeconds,
+    int preCountdownSeconds = 45,
+  }) =>
+      WorkoutConfig(
+        presetId: 'custom',
+        totalRounds: rounds,
+        workDuration: Duration(seconds: workSeconds),
+        restDuration: Duration(seconds: restSeconds),
+        preCountdown: Duration(seconds: preCountdownSeconds),
+      );
+
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
