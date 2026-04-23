@@ -19,6 +19,7 @@ dependencies:
   google_mobile_ads: ^6.0.0
   lucide_icons_flutter: ^3.0.0
   just_audio: ^0.10.0
+  wakelock_plus: ^1.3.0
 
 dev_dependencies:
   flutter_test:

@@ -1,9 +1,12 @@
+import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 import 'package:eight_count/core/design/phase_colors.dart';
 import 'package:eight_count/core/engine/workout_engine.dart';
@@ -52,6 +55,10 @@ class _TimerScreenState extends State<TimerScreen> {
   @override
   void initState() {
     super.initState();
+    // Keep the screen awake during a workout. Sleeping mid-round = broken
+    // timer + missed cues. Failure is swallowed via catchError so wakelock
+    // can never crash the flow.
+    unawaited(_safeWakelock(enable: true));
     if (widget.presetId == 'boxing') {
       _engine = WorkoutEngine(
         config: WorkoutConfig.boxing(),
@@ -259,7 +266,35 @@ class _TimerScreenState extends State<TimerScreen> {
       engine.removeListener(_onEngineChange);
       engine.dispose();
     }
+    // Release the wakelock so the home screen's normal system timeout
+    // resumes. dispose() is sync; fire-and-forget with try/catch inside.
+    unawaited(_safeWakelock(enable: false));
     super.dispose();
+  }
+
+  /// Toggles the system wakelock with try/catch so platform errors never
+  /// bubble into the workout flow. Log-only on failure via debugPrint.
+  Future<void> _safeWakelock({required bool enable}) async {
+    try {
+      if (enable) {
+        await WakelockPlus.enable();
+      } else {
+        await WakelockPlus.disable();
+      }
+    } catch (e) {
+      debugPrint(
+        'WakelockPlus.${enable ? 'enable' : 'disable'} failed: $e',
+      );
+    }
+  }
+
+  /// DEV-ONLY: fires only when [kDebugMode] so the SKIP button is tree-shaken
+  /// out of release builds. Calls the locked engine's [skipPhase] — same path
+  /// the engine's own unit tests exercise. Haptic is fired by the button
+  /// widget itself (light-impact variant), same pattern as PAUSE/STOP.
+  void _handleSkip() {
+    if (!kDebugMode) return;
+    _engine?.skipPhase();
   }
 
   /// Maps the engine's phase to the user-facing label shown above the ring.
@@ -405,6 +440,12 @@ class _TimerScreenState extends State<TimerScreen> {
                               ),
                             )
                           else
+                            // Button row: PAUSE + STOP in release builds
+                            // (140×56 each). In debug, a SKIP button joins
+                            // the row and all three shrink to 100×56 so the
+                            // total (100*3 + 16*2 = 332dp) fits S23's 411dp
+                            // logical width with margin — 140×56 × 3 would
+                            // blow past at 436dp.
                             Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
@@ -413,14 +454,26 @@ class _TimerScreenState extends State<TimerScreen> {
                                       ? l10n.resumeButton
                                       : l10n.pauseButton,
                                   isPrimary: true,
+                                  width: kDebugMode ? 100 : 140,
                                   onTap: _handlePauseResume,
                                 ),
                                 const SizedBox(width: 16),
                                 _TimerActionButton(
                                   label: l10n.stopButton,
                                   isPrimary: false,
+                                  width: kDebugMode ? 100 : 140,
                                   onTap: _handleStop,
                                 ),
+                                if (kDebugMode) ...[
+                                  const SizedBox(width: 16),
+                                  _TimerActionButton(
+                                    label: 'SKIP',
+                                    isPrimary: false,
+                                    isDebug: true,
+                                    width: 100,
+                                    onTap: _handleSkip,
+                                  ),
+                                ],
                               ],
                             ),
                           if (showRoundCard) ...[
@@ -467,6 +520,8 @@ class _TimerActionButton extends StatelessWidget {
     required this.label,
     required this.onTap,
     required this.isPrimary,
+    this.width = 140,
+    this.isDebug = false,
   });
 
   final String label;
@@ -475,23 +530,40 @@ class _TimerActionButton extends StatelessWidget {
   /// Primary = gold-tinted (PAUSE / RESUME). Non-primary = neutral (STOP).
   final bool isPrimary;
 
+  /// Fixed width. Defaults to 140 for the production two-button row; shrinks
+  /// to 100 when the debug SKIP button makes it a three-button row.
+  final double width;
+
+  /// Debug-only variant (SKIP). Muted grey outline + grey text, light
+  /// haptic instead of medium. Hidden from release builds at the call site
+  /// via `if (kDebugMode)`.
+  final bool isDebug;
+
   @override
   Widget build(BuildContext context) {
-    final Color borderColor = isPrimary
-        ? const Color(0xFFF5C518)
-        : const Color(0x33FFFFFF);
-    final Color textColor = isPrimary
-        ? const Color(0xFFF5C518)
-        : const Color(0xFFFFFFFF);
+    final Color borderColor = isDebug
+        ? const Color(0xFF8A8A8A)
+        : (isPrimary
+            ? const Color(0xFFF5C518)
+            : const Color(0x33FFFFFF));
+    final Color textColor = isDebug
+        ? const Color(0xFF8A8A8A)
+        : (isPrimary
+            ? const Color(0xFFF5C518)
+            : const Color(0xFFFFFFFF));
 
     return GestureDetector(
       onTap: () {
-        HapticFeedback.mediumImpact();
+        if (isDebug) {
+          HapticFeedback.lightImpact();
+        } else {
+          HapticFeedback.mediumImpact();
+        }
         onTap();
       },
       behavior: HitTestBehavior.opaque,
       child: Container(
-        width: 140,
+        width: width,
         height: 56,
         decoration: BoxDecoration(
           color: const Color(0xFF141414),
