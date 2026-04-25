@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
+import 'package:flutter/foundation.dart'
+    show debugPrint, kDebugMode, visibleForTesting;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -42,6 +43,109 @@ import 'package:eight_count/main.dart' show audioService;
 ///   - bell_start on work-phase entry (incl. from preCountdown and rest)
 ///   - bell_end on work-phase EXIT (every round, including final)
 ///   - rest-entry is SILENT (whistle_long is reserved for Smoker)
+
+/// Smoker variant of the "remaining total seconds" calculation. Walks
+/// `config.blocks` once to resolve the engine's current LINEAR position
+/// (a unique index into the block list), then sums every prior block's
+/// full duration plus the partial contribution of the current period.
+///
+/// Why a linear-position resolve: engine state exposes
+/// `(blockType, currentBlockIndex)`, where `currentBlockIndex` tracks the
+/// most-recently-completed CONTENT block per Stage 1's contract. During
+/// a transition, `currentBlockIndex` matches the content block before
+/// the transition — meaning the tuple alone can't distinguish "inside
+/// content block N" from "inside transition AFTER content block N"
+/// without consulting the phase. Resolving to a single integer linearIdx
+/// upfront eliminates that ambiguity for the rest of the loop.
+///
+/// `total` here INCLUDES the preCountdown so the displayed value during
+/// preCountdown reflects "full workout duration" (e.g., 57:25 for V2
+/// standard Smoker = 45 warmup + 3400 content/transitions). PreCountdown
+/// elapsed never counts against the displayed remaining: as soon as
+/// content begins, the value drops by the work/rest seconds consumed.
+@visibleForTesting
+int remainingTotalSecondsSmoker(
+  SmokerConfig config,
+  WorkoutPhase phase,
+  int currentRound,
+  int phaseRemainingMs, {
+  required int? currentBlockIndex,
+  required WorkoutBlockType? blockType,
+}) {
+  final int totalMs =
+      (config.totalDurationSeconds + config.preCountdown.inSeconds) * 1000;
+
+  if (phase == WorkoutPhase.preCountdown) {
+    return (totalMs / 1000).ceil();
+  }
+  if (phase == WorkoutPhase.complete) {
+    return 0;
+  }
+  if (currentBlockIndex == null || blockType == null) {
+    return (totalMs / 1000).ceil();
+  }
+
+  // Resolve the engine's current linear index in config.blocks.
+  int contentSeen = 0;
+  int currentLinearIdx = -1;
+  for (int i = 0; i < config.blocks.length; i++) {
+    final WorkoutBlockType bt = config.blocks[i].blockType;
+    if (bt == WorkoutBlockType.transition) {
+      // Transition AFTER the content block #contentSeen.
+      if (blockType == WorkoutBlockType.transition &&
+          contentSeen == currentBlockIndex) {
+        currentLinearIdx = i;
+        break;
+      }
+    } else {
+      contentSeen++;
+      if (blockType != WorkoutBlockType.transition &&
+          contentSeen == currentBlockIndex) {
+        currentLinearIdx = i;
+        break;
+      }
+    }
+  }
+  if (currentLinearIdx < 0) {
+    // Engine state didn't match any block — safe fallback.
+    return (totalMs / 1000).ceil();
+  }
+
+  int elapsedMs = 0;
+  int globalRoundsConsumed = 0;
+  for (int i = 0; i < currentLinearIdx; i++) {
+    final b = config.blocks[i];
+    if (b.blockType == WorkoutBlockType.transition) {
+      elapsedMs += b.restDuration.inMilliseconds;
+    } else {
+      elapsedMs += b.workDuration.inMilliseconds * b.totalRounds;
+      elapsedMs += b.restDuration.inMilliseconds * (b.totalRounds - 1);
+      globalRoundsConsumed += b.totalRounds;
+    }
+  }
+
+  // Partial contribution of the current block.
+  final current = config.blocks[currentLinearIdx];
+  if (current.blockType == WorkoutBlockType.transition) {
+    elapsedMs += current.restDuration.inMilliseconds - phaseRemainingMs;
+  } else {
+    final int roundInBlock =
+        (currentRound - globalRoundsConsumed).clamp(1, current.totalRounds);
+    final int priorRoundsInBlock = roundInBlock - 1;
+    elapsedMs += priorRoundsInBlock * current.workDuration.inMilliseconds +
+        priorRoundsInBlock * current.restDuration.inMilliseconds;
+    if (phase == WorkoutPhase.work) {
+      elapsedMs += current.workDuration.inMilliseconds - phaseRemainingMs;
+    } else {
+      elapsedMs += current.workDuration.inMilliseconds +
+          (current.restDuration.inMilliseconds - phaseRemainingMs);
+    }
+  }
+
+  final int remainingMs = (totalMs - elapsedMs).clamp(0, totalMs);
+  return (remainingMs / 1000).ceil();
+}
+
 class TimerScreen extends StatefulWidget {
   const TimerScreen({
     super.key,
@@ -162,7 +266,7 @@ class _TimerScreenState extends State<TimerScreen> {
     WorkoutBlockType? blockType,
   }) {
     if (config is SmokerConfig) {
-      return _remainingTotalSecondsSmoker(
+      return remainingTotalSecondsSmoker(
         config,
         phase,
         currentRound,
@@ -198,90 +302,6 @@ class _TimerScreenState extends State<TimerScreen> {
         elapsedMs = totalMs;
         break;
     }
-    final int remainingMs = (totalMs - elapsedMs).clamp(0, totalMs);
-    return (remainingMs / 1000).ceil();
-  }
-
-  /// Smoker variant of [_remainingTotalSeconds]. Walks the block list summing
-  /// elapsed time up to the engine's current position; returns total minus
-  /// elapsed, ceil'd to whole seconds.
-  static int _remainingTotalSecondsSmoker(
-    SmokerConfig config,
-    WorkoutPhase phase,
-    int currentRound,
-    int phaseRemainingMs, {
-    required int? currentBlockIndex,
-    required WorkoutBlockType? blockType,
-  }) {
-    final int totalMs = config.totalDurationSeconds * 1000;
-
-    if (phase == WorkoutPhase.preCountdown) {
-      return (totalMs / 1000).ceil();
-    }
-    if (phase == WorkoutPhase.complete) {
-      return 0;
-    }
-    if (currentBlockIndex == null || blockType == null) {
-      return (totalMs / 1000).ceil();
-    }
-
-    // Sum durations of all blocks fully completed BEFORE the current block.
-    // For Smoker the "block list" interleaves content + transitions; we
-    // walk them in order, tracking which content block index we're up to.
-    int elapsedMs = 0;
-    int contentIdx = 0; // 1-indexed content-block counter as we walk
-    int globalRoundsConsumed = 0;
-    for (final b in config.blocks) {
-      final bool isContent = b.blockType != WorkoutBlockType.transition;
-      if (isContent) contentIdx++;
-      final bool isCurrentBlock = (b.blockType == blockType) &&
-          (isContent
-              ? contentIdx == currentBlockIndex
-              : contentIdx == currentBlockIndex);
-      if (!isCurrentBlock) {
-        // Whole block lies entirely in the past relative to the engine.
-        // BUT only if its content-index is strictly less than the current
-        // content block (or, for transitions, the trailing transition of
-        // a strictly-earlier content block).
-        if (isContent) {
-          if (contentIdx < currentBlockIndex) {
-            elapsedMs += b.workDuration.inMilliseconds * b.totalRounds;
-            elapsedMs +=
-                b.restDuration.inMilliseconds * (b.totalRounds - 1);
-            globalRoundsConsumed += b.totalRounds;
-          }
-        } else {
-          // Transition — fully past iff its preceding content block is
-          // strictly less than the current content block.
-          if (contentIdx < currentBlockIndex) {
-            elapsedMs += b.restDuration.inMilliseconds;
-          }
-        }
-        continue;
-      }
-      // We're inside this block. Compute partial contribution.
-      if (isContent) {
-        final int roundInBlock =
-            (currentRound - globalRoundsConsumed).clamp(1, b.totalRounds);
-        final int priorRoundsInBlock = roundInBlock - 1;
-        elapsedMs +=
-            priorRoundsInBlock * b.workDuration.inMilliseconds +
-                priorRoundsInBlock * b.restDuration.inMilliseconds;
-        if (phase == WorkoutPhase.work) {
-          elapsedMs +=
-              b.workDuration.inMilliseconds - phaseRemainingMs;
-        } else {
-          // rest within a content block
-          elapsedMs += b.workDuration.inMilliseconds +
-              (b.restDuration.inMilliseconds - phaseRemainingMs);
-        }
-      } else {
-        // Transition rest
-        elapsedMs += b.restDuration.inMilliseconds - phaseRemainingMs;
-      }
-      break;
-    }
-
     final int remainingMs = (totalMs - elapsedMs).clamp(0, totalMs);
     return (remainingMs / 1000).ceil();
   }
