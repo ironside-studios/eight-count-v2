@@ -581,124 +581,129 @@ class _TimerScreenState extends State<TimerScreen> {
                   GestureDetector(
                     onTap: _started ? null : _handleStartTap,
                     behavior: HitTestBehavior.opaque,
-                    child: Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (showBlockLabel) ...[
-                            BlockLabel(
-                              currentBlockIndex: currentBlockIndex,
-                              blockType: blockType,
-                              totalContentBlocks: totalContentBlocks,
-                            ),
-                            const SizedBox(height: 12),
-                          ],
-                          if (showPhaseLabel) ...[
-                            Text(
-                              phaseLabel,
-                              style: GoogleFonts.bebasNeue(
-                                fontSize: 64,
-                                fontWeight: FontWeight.w700,
-                                color: digitColor,
-                                letterSpacing: 3,
-                              ),
-                            ),
-                            const SizedBox(height: 24),
-                          ],
-                          SizedBox(
-                            width: 380,
-                            height: 380,
-                            child: Stack(
-                              alignment: Alignment.center,
-                              children: [
-                                CustomPaint(
-                                  size: const Size(380, 380),
-                                  painter: _CountdownRingPainter(
-                                    progress: progress,
-                                    arcColor: phaseColor,
-                                    trackColor: const Color(0x1AF5C518),
-                                    strokeWidth: 6,
-                                  ),
-                                ),
-                                Text(
-                                  digitText,
-                                  style: GoogleFonts.bebasNeue(
-                                    fontSize: 220,
-                                    fontWeight: FontWeight.w700,
-                                    color: digitColor,
-                                    letterSpacing: 0,
-                                    height: 1.0,
-                                  ),
-                                ),
-                              ],
+                    // Fill the SafeArea so Spacers can distribute slack
+                    // vertically. With BlockLabel added in Smoker mode,
+                    // the prior Center+min-height column overflowed
+                    // ~50px on S23 Ultra; flexing top/middle/bottom
+                    // spacers keeps the same visual rhythm at any
+                    // viewport height.
+                    child: Column(
+                      mainAxisSize: MainAxisSize.max,
+                      children: [
+                        const Spacer(flex: 1),
+                        if (showBlockLabel) ...[
+                          BlockLabel(
+                            currentBlockIndex: currentBlockIndex,
+                            blockType: blockType,
+                            totalContentBlocks: totalContentBlocks,
+                          ),
+                          const SizedBox(height: 12),
+                        ],
+                        if (showPhaseLabel) ...[
+                          Text(
+                            phaseLabel,
+                            style: GoogleFonts.bebasNeue(
+                              fontSize: 64,
+                              fontWeight: FontWeight.w700,
+                              color: digitColor,
+                              letterSpacing: 3,
                             ),
                           ),
-                          const SizedBox(height: 32),
-                          if (!_started)
-                            Text(
-                              l10n.tapToStartHint,
-                              style: GoogleFonts.inter(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w400,
-                                color: const Color(0xFF8A8A8A),
-                                letterSpacing: 4,
-                              ),
-                            )
-                          else
-                            // Button row: PAUSE + STOP in release builds
-                            // (140×56 each). In debug, a SKIP button joins
-                            // the row and all three shrink to 100×56 so the
-                            // total (100*3 + 16*2 = 332dp) fits S23's 411dp
-                            // logical width with margin — 140×56 × 3 would
-                            // blow past at 436dp.
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                _TimerActionButton(
-                                  label: isPaused
-                                      ? l10n.resumeButton
-                                      : l10n.pauseButton,
-                                  isPrimary: true,
-                                  width: kDebugMode ? 100 : 140,
-                                  onTap: _handlePauseResume,
+                          const SizedBox(height: 24),
+                        ],
+                        SizedBox(
+                          width: 380,
+                          height: 380,
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              CustomPaint(
+                                size: const Size(380, 380),
+                                painter: _CountdownRingPainter(
+                                  progress: progress,
+                                  arcColor: phaseColor,
+                                  trackColor: const Color(0x1AF5C518),
+                                  strokeWidth: 6,
                                 ),
+                              ),
+                              Text(
+                                digitText,
+                                style: GoogleFonts.bebasNeue(
+                                  fontSize: 220,
+                                  fontWeight: FontWeight.w700,
+                                  color: digitColor,
+                                  letterSpacing: 0,
+                                  height: 1.0,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Spacer(flex: 1),
+                        if (!_started)
+                          Text(
+                            l10n.tapToStartHint,
+                            style: GoogleFonts.inter(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w400,
+                              color: const Color(0xFF8A8A8A),
+                              letterSpacing: 4,
+                            ),
+                          )
+                        else
+                          // Button row: PAUSE + STOP in release builds
+                          // (140×56 each). In debug, a SKIP button joins
+                          // the row and all three shrink to 100×56 so the
+                          // total (100*3 + 16*2 = 332dp) fits S23's 411dp
+                          // logical width with margin — 140×56 × 3 would
+                          // blow past at 436dp.
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              _TimerActionButton(
+                                label: isPaused
+                                    ? l10n.resumeButton
+                                    : l10n.pauseButton,
+                                isPrimary: true,
+                                width: kDebugMode ? 100 : 140,
+                                onTap: _handlePauseResume,
+                              ),
+                              const SizedBox(width: 16),
+                              _TimerActionButton(
+                                label: l10n.stopButton,
+                                isPrimary: false,
+                                width: kDebugMode ? 100 : 140,
+                                onTap: _handleStop,
+                              ),
+                              if (kDebugMode) ...[
                                 const SizedBox(width: 16),
                                 _TimerActionButton(
-                                  label: l10n.stopButton,
+                                  label: 'SKIP',
                                   isPrimary: false,
-                                  width: kDebugMode ? 100 : 140,
-                                  onTap: _handleStop,
+                                  isDebug: true,
+                                  width: 100,
+                                  onTap: _handleSkip,
                                 ),
-                                if (kDebugMode) ...[
-                                  const SizedBox(width: 16),
-                                  _TimerActionButton(
-                                    label: 'SKIP',
-                                    isPrimary: false,
-                                    isDebug: true,
-                                    width: 100,
-                                    onTap: _handleSkip,
-                                  ),
-                                ],
                               ],
-                            ),
-                          if (showRoundCard) ...[
-                            const SizedBox(height: 24),
-                            _RoundCard(
-                              label: l10n.roundCardLabel,
-                              currentRound: roundForCounter.current,
-                              totalRounds: roundForCounter.total,
-                            ),
-                          ],
-                          if (showTotalCard) ...[
-                            const SizedBox(height: 16),
-                            _TotalTimeCard(
-                              label: l10n.totalTimeCardLabel,
-                              remainingTotalSeconds: totalRemainingSec,
-                            ),
-                          ],
+                            ],
+                          ),
+                        if (showRoundCard) ...[
+                          const SizedBox(height: 24),
+                          _RoundCard(
+                            label: l10n.roundCardLabel,
+                            currentRound: roundForCounter.current,
+                            totalRounds: roundForCounter.total,
+                          ),
                         ],
-                      ),
+                        if (showTotalCard) ...[
+                          const SizedBox(height: 16),
+                          _TotalTimeCard(
+                            label: l10n.totalTimeCardLabel,
+                            remainingTotalSeconds: totalRemainingSec,
+                          ),
+                        ],
+                        const Spacer(flex: 1),
+                      ],
                     ),
                   ),
                   // Dim overlay — sits above the ring/digit, below the buttons.
