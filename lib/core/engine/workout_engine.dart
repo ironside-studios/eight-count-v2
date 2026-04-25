@@ -16,8 +16,9 @@ import '../services/audio_service.dart';
 ///   2. Audio cues never overlap — AudioService handles stop-before-play.
 ///      Engine just calls [AudioService.play].
 ///   3. wood_clack fires at remaining ≤ 11000ms (NOT 10000ms) so the 1.88s
-///      clip finishes before bell_end at 0ms. Boxing-rest only — work and
-///      preCountdown phases stay silent at the 11s mark. Smoker/Custom
+///      clip finishes before bell_end / bell_start at 0ms. Fires in Boxing
+///      work AND rest periods (mirrors the pro-bout wooden-clapper
+///      convention). preCountdown and complete stay silent. Smoker/Custom
 ///      presets do not schedule wood_clack at all (Phase 2a scope).
 ///   4. Phase-entry cues (bell_start, whistle_long, bell_end) fire from
 ///      [_advanceToPhase], NOT from the tick loop. Guarantees one fire
@@ -204,11 +205,13 @@ class WorkoutEngine extends ChangeNotifier {
 
     final remainingMs = _phaseEndsAt!.difference(_clock()).inMilliseconds;
 
-    // Boxing-rest wood_clack: fire once when remaining drops at or below the
-    // lead time. Equivalent to elapsed_in_rest >= restDuration - 11s.
-    // Work and preCountdown stay silent; non-Boxing presets opt out entirely.
+    // Boxing wood_clack: fire once when remaining drops at or below the
+    // lead time, in work AND rest periods (mirrors pro-bout convention —
+    // wooden clapper rings ~10s before each round ends and before each
+    // round begins). preCountdown and complete stay silent; non-Boxing
+    // presets opt out entirely.
     if (config.presetId == 'boxing' &&
-        _phase == WorkoutPhase.rest &&
+        (_phase == WorkoutPhase.work || _phase == WorkoutPhase.rest) &&
         remainingMs <= _restClackLeadTime.inMilliseconds &&
         !_firedCuesThisPeriod.contains(cueWoodClack)) {
       _firedCuesThisPeriod.add(cueWoodClack);

@@ -109,7 +109,7 @@ void main() {
 
   test(
       'Advancing through 12 rounds produces 12 bell_start, 0 whistle_long, '
-      '12 bell_end, 11 wood_clack cues (Boxing cue contract)', () {
+      '12 bell_end, 23 wood_clack cues (Boxing cue contract)', () {
     engine.start();
 
     // Finish preCountdown — no wood_clack fires here under Phase 2a scope.
@@ -117,14 +117,16 @@ void main() {
     engine.debugTick(); // expires preCountdown → work round 1 + bell_start
 
     for (int round = 1; round <= 12; round++) {
-      // Work period: no wood_clack fires (Boxing-rest only).
-      clock.advance(const Duration(seconds: 180));
+      // Inside work: cross the 11s threshold then expire.
+      clock.advance(const Duration(seconds: 169));
+      engine.debugTick(); // fires work-side wood_clack
+      clock.advance(const Duration(seconds: 11));
       engine.debugTick(); // expires work → bell_end + rest (or complete on R12)
 
       if (round < 12) {
-        // Inside rest: trigger warning cue, then expire.
+        // Inside rest: cross the 11s threshold then expire.
         clock.advance(const Duration(seconds: 49));
-        engine.debugTick(); // fires wood_clack (60→11s)
+        engine.debugTick(); // fires rest-side wood_clack
         clock.advance(const Duration(seconds: 11));
         engine.debugTick(); // expires rest → work round N+1 + bell_start
       }
@@ -139,9 +141,8 @@ void main() {
         reason: 'whistle_long is Smoker-only; Boxing never fires it');
     expect(count(WorkoutEngine.cueBellEnd), 12,
         reason: 'bell_end fires at end of every work phase (incl. final)');
-    expect(count(WorkoutEngine.cueWoodClack), 11,
-        reason: 'wood_clack fires once per rest period (rounds 1..11; '
-            'round 12 has no rest)');
+    expect(count(WorkoutEngine.cueWoodClack), 23,
+        reason: '12 work-side + 11 rest-side (no rest after R12)');
 
     expect(engine.state.phase, WorkoutPhase.complete);
   });
