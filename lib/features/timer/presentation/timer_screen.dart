@@ -107,7 +107,11 @@ class _TimerScreenState extends State<TimerScreen> {
     // rebuilds handle the label / ring-color / round-card swaps.
     if (engine.state.phase == WorkoutPhase.complete) {
       _popped = true;
-      final int totalSeconds = _totalWorkoutSeconds(engine.config);
+      // timer_screen only routes Boxing/Custom configs (Smoker bounces home
+      // in initState); Stage 1 of Phase 2b types engine.config as Object,
+      // so cast back to the WorkoutConfig the helper expects.
+      final int totalSeconds =
+          _totalWorkoutSeconds(engine.config as WorkoutConfig);
       final String presetId = widget.presetId;
       Future.delayed(const Duration(milliseconds: 50), () {
         if (!mounted) return;
@@ -395,7 +399,7 @@ class _TimerScreenState extends State<TimerScreen> {
               final int totalRemainingSec = engine == null
                   ? 0
                   : _remainingTotalSeconds(
-                      engine.config,
+                      engine.config as WorkoutConfig,
                       phase,
                       engine.state.currentRound,
                       engine.state.phaseRemaining.inMilliseconds,
