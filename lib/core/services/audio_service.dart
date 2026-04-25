@@ -1,3 +1,15 @@
+// ============================================================================
+// AUDIOSERVICE — LOCKED 2026-04-25
+// ============================================================================
+// Hardware-verified on Samsung S23 Ultra (SM-S918U):
+//   - Test A: Boxing rest ghost — PASS
+//   - Test B: Main-screen ghost — PASS
+//   - Test C: Force-close survival — PASS
+// Original lock 2026-04-20. Unlocked 2026-04-23 for ghost timer fix
+// (commit 54f9477). Re-locked 2026-04-25 after S23 device verification.
+// DO NOT MODIFY without explicit project owner request.
+// ============================================================================
+
 import 'dart:async';
 
 import 'package:flutter/widgets.dart';
