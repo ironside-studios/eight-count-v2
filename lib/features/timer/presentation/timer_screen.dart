@@ -597,19 +597,19 @@ class _TimerScreenState extends State<TimerScreen> {
                             blockType: blockType,
                             totalContentBlocks: totalContentBlocks,
                           ),
-                          const SizedBox(height: 12),
+                          const SizedBox(height: 8),
                         ],
                         if (showPhaseLabel) ...[
                           Text(
                             phaseLabel,
                             style: GoogleFonts.bebasNeue(
-                              fontSize: 64,
+                              fontSize: 52,
                               fontWeight: FontWeight.w700,
                               color: digitColor,
                               letterSpacing: 3,
                             ),
                           ),
-                          const SizedBox(height: 24),
+                          const SizedBox(height: 16),
                         ],
                         SizedBox(
                           width: 380,
