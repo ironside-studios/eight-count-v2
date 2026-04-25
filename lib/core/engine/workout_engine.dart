@@ -16,7 +16,10 @@ import '../services/audio_service.dart';
 ///   2. Audio cues never overlap — AudioService handles stop-before-play.
 ///      Engine just calls [AudioService.play].
 ///   3. wood_clack fires at remaining ≤ 11000ms (NOT 10000ms) so the 1.88s
-///      clip finishes before bell_end at 0ms.
+///      clip finishes before bell_end / bell_start at 0ms. Fires in Boxing
+///      work AND rest periods (mirrors the pro-bout wooden-clapper
+///      convention). preCountdown and complete stay silent. Smoker/Custom
+///      presets do not schedule wood_clack at all (Phase 2a scope).
 ///   4. Phase-entry cues (bell_start, whistle_long, bell_end) fire from
 ///      [_advanceToPhase], NOT from the tick loop. Guarantees one fire
 ///      per phase regardless of tick frequency.
@@ -50,8 +53,9 @@ class WorkoutEngine extends ChangeNotifier {
   static const String cueBellEnd = 'bell_end';
   static const String cueWhistleLong = 'whistle_long';
 
-  /// Remaining-time threshold (ms) at which the 11s warning cue fires.
-  static const int warningThresholdMs = 11000;
+  /// Lead time before a Boxing rest period ends at which wood_clack fires.
+  /// Equivalent to "remaining ≤ 11000ms" in tick math.
+  static const Duration _restClackLeadTime = Duration(seconds: 11);
 
   // --- Owned mutable state (never exposed as setters) ---
   WorkoutPhase _phase = WorkoutPhase.preCountdown;
@@ -62,7 +66,7 @@ class WorkoutEngine extends ChangeNotifier {
   bool _isPaused = false;
   bool _isStarted = false;
   bool _disposed = false;
-  final Set<int> _firedCueMsThresholds = <int>{};
+  final Set<String> _firedCuesThisPeriod = <String>{};
 
   Ticker? _ticker;
 
@@ -104,7 +108,7 @@ class WorkoutEngine extends ChangeNotifier {
     _currentRound = 0;
     _isPaused = false;
     _pausedRemaining = null;
-    _firedCueMsThresholds.clear();
+    _firedCuesThisPeriod.clear();
     final now = _clock();
     _phaseStartedAt = now;
     _phaseEndsAt = now.add(config.preCountdown);
@@ -168,6 +172,7 @@ class WorkoutEngine extends ChangeNotifier {
     _disposed = true;
     _ticker?.dispose();
     _ticker = null;
+    _firedCuesThisPeriod.clear();
     super.dispose();
   }
 
@@ -200,9 +205,16 @@ class WorkoutEngine extends ChangeNotifier {
 
     final remainingMs = _phaseEndsAt!.difference(_clock()).inMilliseconds;
 
-    if (remainingMs <= warningThresholdMs &&
-        !_firedCueMsThresholds.contains(warningThresholdMs)) {
-      _firedCueMsThresholds.add(warningThresholdMs);
+    // Boxing wood_clack: fire once when remaining drops at or below the
+    // lead time, in work AND rest periods (mirrors pro-bout convention —
+    // wooden clapper rings ~10s before each round ends and before each
+    // round begins). preCountdown and complete stay silent; non-Boxing
+    // presets opt out entirely.
+    if (config.presetId == 'boxing' &&
+        (_phase == WorkoutPhase.work || _phase == WorkoutPhase.rest) &&
+        remainingMs <= _restClackLeadTime.inMilliseconds &&
+        !_firedCuesThisPeriod.contains(cueWoodClack)) {
+      _firedCuesThisPeriod.add(cueWoodClack);
       audio.play(cueWoodClack);
     }
 
@@ -252,7 +264,7 @@ class WorkoutEngine extends ChangeNotifier {
   }) {
     _phase = newPhase;
     if (round != null) _currentRound = round;
-    _firedCueMsThresholds.clear();
+    _firedCuesThisPeriod.clear();
 
     final now = _clock();
     _phaseStartedAt = now;
