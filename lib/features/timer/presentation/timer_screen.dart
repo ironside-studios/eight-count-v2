@@ -12,6 +12,7 @@ import 'package:eight_count/core/design/phase_colors.dart';
 import 'package:eight_count/core/engine/workout_engine.dart';
 import 'package:eight_count/core/models/workout_config.dart';
 import 'package:eight_count/core/models/workout_phase.dart';
+import 'package:eight_count/core/services/audio_service.dart';
 import 'package:eight_count/core/utils/time_format.dart';
 import 'package:eight_count/generated/l10n/app_localizations.dart';
 import 'package:eight_count/main.dart' show audioService;
@@ -279,6 +280,12 @@ class _TimerScreenState extends State<TimerScreen> {
 
   @override
   void dispose() {
+    // Step 5.4: cancel any in-flight cues on the app-wide AudioService
+    // singleton so orphaned playback never leaks onto the home screen
+    // after the workout ends. Not awaited — dispose() stays sync; the
+    // `_cancelled` flag flips immediately and pending player.stop() calls
+    // resolve in the background.
+    unawaited(AudioService.instance.stopAll());
     final engine = _engine;
     if (engine != null) {
       engine.removeListener(_onEngineChange);

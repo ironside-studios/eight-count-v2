@@ -11,7 +11,7 @@ import 'generated/l10n/app_localizations.dart';
 /// wired up (asset preload) inside [main] before the UI mounts. TimerScreen
 /// and anything else that needs cue playback imports this directly, same
 /// pattern as [localeService].
-final AudioService audioService = AudioService();
+final AudioService audioService = AudioService.instance;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
