@@ -76,11 +76,23 @@ void main() {
     expect(audio.playedCues.contains(WorkoutEngine.cueBellStart), isTrue);
   });
 
-  test('wood_clack fires exactly once per phase at the 11s threshold', () {
+  test(
+      'wood_clack fires exactly once when crossing the 11s threshold inside '
+      'a Boxing rest period (and not before)', () {
     engine.start();
 
-    // Cross the 11s boundary.
-    clock.advance(const Duration(seconds: 35));
+    // preCountdown → work R1.
+    clock.advance(const Duration(seconds: 45));
+    engine.debugTick();
+    // work R1 → rest R1 (180s work).
+    clock.advance(const Duration(seconds: 180));
+    engine.debugTick();
+
+    expect(engine.state.phase, WorkoutPhase.rest);
+    audio.playedCues.clear();
+
+    // Inside rest: cross the 11s boundary at 49s elapsed.
+    clock.advance(const Duration(seconds: 49));
     engine.debugTick();
 
     // Continue ticking inside the 11s window — must NOT re-fire.
@@ -97,20 +109,16 @@ void main() {
 
   test(
       'Advancing through 12 rounds produces 12 bell_start, 0 whistle_long, '
-      '12 bell_end, 24 wood_clack cues (Boxing cue contract)', () {
+      '12 bell_end, 11 wood_clack cues (Boxing cue contract)', () {
     engine.start();
 
-    // Finish preCountdown: fire the 11s warning then expire.
-    clock.advance(const Duration(seconds: 34));
-    engine.debugTick(); // fires wood_clack (45→11s)
-    clock.advance(const Duration(seconds: 11));
+    // Finish preCountdown — no wood_clack fires here under Phase 2a scope.
+    clock.advance(const Duration(seconds: 45));
     engine.debugTick(); // expires preCountdown → work round 1 + bell_start
 
     for (int round = 1; round <= 12; round++) {
-      // Inside work: trigger warning cue, then expire.
-      clock.advance(const Duration(seconds: 169));
-      engine.debugTick(); // fires wood_clack (180→11s)
-      clock.advance(const Duration(seconds: 11));
+      // Work period: no wood_clack fires (Boxing-rest only).
+      clock.advance(const Duration(seconds: 180));
       engine.debugTick(); // expires work → bell_end + rest (or complete on R12)
 
       if (round < 12) {
@@ -131,8 +139,9 @@ void main() {
         reason: 'whistle_long is Smoker-only; Boxing never fires it');
     expect(count(WorkoutEngine.cueBellEnd), 12,
         reason: 'bell_end fires at end of every work phase (incl. final)');
-    expect(count(WorkoutEngine.cueWoodClack), 24,
-        reason: '1 preCountdown + 12 work + 11 rest warnings');
+    expect(count(WorkoutEngine.cueWoodClack), 11,
+        reason: 'wood_clack fires once per rest period (rounds 1..11; '
+            'round 12 has no rest)');
 
     expect(engine.state.phase, WorkoutPhase.complete);
   });
