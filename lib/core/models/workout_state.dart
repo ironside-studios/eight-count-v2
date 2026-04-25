@@ -1,3 +1,4 @@
+import 'workout_block_type.dart';
 import 'workout_phase.dart';
 
 /// Immutable UI-facing snapshot of the workout engine. Built fresh from the
@@ -10,6 +11,8 @@ class WorkoutState {
     required this.phaseRemaining,
     required this.phaseDuration,
     required this.isPaused,
+    this.currentBlockIndex,
+    this.blockType,
   });
 
   final WorkoutPhase phase;
@@ -26,6 +29,15 @@ class WorkoutState {
   final Duration phaseDuration;
 
   final bool isPaused;
+
+  /// 1-indexed CONTENT-block number (1..4 for the V2 Smoker preset),
+  /// or null for non-Smoker presets. During a transition this points at
+  /// the most-recently-completed content block.
+  final int? currentBlockIndex;
+
+  /// The type of the current block (boxing / tabata / transition) for
+  /// Smoker workouts; null for single-block presets (Boxing, Custom).
+  final WorkoutBlockType? blockType;
 
   bool get isLastRound => currentRound == totalRounds;
 

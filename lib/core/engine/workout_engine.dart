@@ -1,6 +1,9 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 
+import '../models/smoker_config.dart';
+import '../models/workout_block.dart';
+import '../models/workout_block_type.dart';
 import '../models/workout_config.dart';
 import '../models/workout_phase.dart';
 import '../models/workout_state.dart';
@@ -16,21 +19,35 @@ import '../services/audio_service.dart';
 ///   2. Audio cues never overlap — AudioService handles stop-before-play.
 ///      Engine just calls [AudioService.play].
 ///   3. wood_clack fires at remaining ≤ 11000ms (NOT 10000ms) so the 1.88s
-///      clip finishes before bell_end / bell_start at 0ms. Fires in Boxing
-///      work AND rest periods (mirrors the pro-bout wooden-clapper
-///      convention). preCountdown and complete stay silent. Smoker/Custom
-///      presets do not schedule wood_clack at all (Phase 2a scope).
+///      clip finishes before bell_end / bell_start at 0ms. Boxing preset
+///      fires it in work AND rest. Smoker preset fires it in Boxing-block
+///      work + rest AND in transition rests; Tabata blocks suppress it
+///      (their periods are too short for an 11s warning to be useful).
+///      preCountdown and complete stay silent.
 ///   4. Phase-entry cues (bell_start, whistle_long, bell_end) fire from
 ///      [_advanceToPhase], NOT from the tick loop. Guarantees one fire
 ///      per phase regardless of tick frequency.
+///
+/// Multi-config support (Phase 2b):
+///   The engine accepts [WorkoutConfig] (Boxing, Custom — single block)
+///   or [SmokerConfig] (4 content blocks separated by 3 transitions) as
+///   `Object config`. Boxing/Custom call sites are fully unchanged; the
+///   Smoker dispatch is a parallel branch.
 class WorkoutEngine extends ChangeNotifier {
   WorkoutEngine({
     required this.config,
     required this.audio,
     DateTime Function()? clock,
-  }) : _clock = clock ?? DateTime.now;
+  }) : _clock = clock ?? DateTime.now {
+    if (config is! WorkoutConfig && config is! SmokerConfig) {
+      throw ArgumentError(
+        'WorkoutEngine config must be WorkoutConfig or SmokerConfig, '
+        'got ${config.runtimeType}',
+      );
+    }
+  }
 
-  final WorkoutConfig config;
+  final Object config;
   final AudioService audio;
   final DateTime Function() _clock;
 
@@ -68,7 +85,31 @@ class WorkoutEngine extends ChangeNotifier {
   bool _disposed = false;
   final Set<String> _firedCuesThisPeriod = <String>{};
 
+  // --- Smoker-only state (null for WorkoutConfig configs) ---
+  List<WorkoutBlock>? _blocks;
+  int? _blockIdx;
+  WorkoutBlockType? _currentBlockType;
+
+  /// Round index within the current content block (1..N). For transitions
+  /// this is held at 1 (the transition's single rest period).
+  int _roundInCurrentBlock = 0;
+
   Ticker? _ticker;
+
+  // --- Config helpers (branch on type) ---
+
+  String get _presetId =>
+      config is WorkoutConfig ? (config as WorkoutConfig).presetId : (config as SmokerConfig).presetId;
+
+  Duration get _preCountdown => config is WorkoutConfig
+      ? (config as WorkoutConfig).preCountdown
+      : (config as SmokerConfig).preCountdown;
+
+  int get _totalRounds => config is WorkoutConfig
+      ? (config as WorkoutConfig).totalRounds
+      : (config as SmokerConfig).totalRounds;
+
+  bool get _isSmoker => config is SmokerConfig;
 
   // --- Public read-only state snapshot ---
   WorkoutState get state {
@@ -91,10 +132,12 @@ class WorkoutEngine extends ChangeNotifier {
     return WorkoutState(
       phase: _phase,
       currentRound: _currentRound,
-      totalRounds: config.totalRounds,
+      totalRounds: _totalRounds,
       phaseRemaining: remaining,
       phaseDuration: phaseDuration,
       isPaused: _isPaused,
+      currentBlockIndex: _userFacingBlockIndex(),
+      blockType: _currentBlockType,
     );
   }
 
@@ -109,9 +152,18 @@ class WorkoutEngine extends ChangeNotifier {
     _isPaused = false;
     _pausedRemaining = null;
     _firedCuesThisPeriod.clear();
+
+    if (_isSmoker) {
+      final smoker = config as SmokerConfig;
+      _blocks = List<WorkoutBlock>.unmodifiable(smoker.blocks);
+      _blockIdx = 0;
+      _currentBlockType = _blocks![0].blockType;
+      _roundInCurrentBlock = 1;
+    }
+
     final now = _clock();
     _phaseStartedAt = now;
-    _phaseEndsAt = now.add(config.preCountdown);
+    _phaseEndsAt = now.add(_preCountdown);
     _ticker = Ticker(_onTick)..start();
     notifyListeners();
   }
@@ -186,14 +238,52 @@ class WorkoutEngine extends ChangeNotifier {
   Duration _currentPhaseDuration() {
     switch (_phase) {
       case WorkoutPhase.preCountdown:
-        return config.preCountdown;
+        return _preCountdown;
       case WorkoutPhase.work:
-        return config.workDuration;
+        if (_isSmoker) return _blocks![_blockIdx!].workDuration;
+        return (config as WorkoutConfig).workDuration;
       case WorkoutPhase.rest:
-        return config.restDuration;
+        if (_isSmoker) return _blocks![_blockIdx!].restDuration;
+        return (config as WorkoutConfig).restDuration;
       case WorkoutPhase.complete:
         return Duration.zero;
     }
+  }
+
+  /// 1-indexed user-facing CONTENT block number (1..4 for V2 Smoker).
+  /// Returns null for non-Smoker configs. During a transition this is the
+  /// most-recently-completed content block.
+  int? _userFacingBlockIndex() {
+    if (!_isSmoker || _blockIdx == null || _blocks == null) return null;
+    int count = 0;
+    for (int i = 0; i <= _blockIdx!; i++) {
+      if (_blocks![i].blockType != WorkoutBlockType.transition) count++;
+    }
+    return count == 0 ? null : count;
+  }
+
+  /// True iff the current period is one in which wood_clack should fire
+  /// at the 11s-remaining mark.
+  ///   - Boxing preset:  work or rest
+  ///   - Smoker preset:  Boxing-block work or rest, OR a transition rest
+  ///   - Tabata blocks:  never (periods too short for an 11s warning)
+  ///   - preCountdown:   never
+  bool _isWoodClackEligiblePeriod() {
+    if (_phase != WorkoutPhase.work && _phase != WorkoutPhase.rest) {
+      return false;
+    }
+    if (_isSmoker) {
+      switch (_currentBlockType!) {
+        case WorkoutBlockType.boxing:
+          return true;
+        case WorkoutBlockType.tabata:
+          return false;
+        case WorkoutBlockType.transition:
+          return _phase == WorkoutPhase.rest;
+      }
+    }
+    // Boxing / Custom single-block configs.
+    return _presetId == 'boxing';
   }
 
   void _onTick(Duration _) => _pollState();
@@ -205,13 +295,7 @@ class WorkoutEngine extends ChangeNotifier {
 
     final remainingMs = _phaseEndsAt!.difference(_clock()).inMilliseconds;
 
-    // Boxing wood_clack: fire once when remaining drops at or below the
-    // lead time, in work AND rest periods (mirrors pro-bout convention —
-    // wooden clapper rings ~10s before each round ends and before each
-    // round begins). preCountdown and complete stay silent; non-Boxing
-    // presets opt out entirely.
-    if (config.presetId == 'boxing' &&
-        (_phase == WorkoutPhase.work || _phase == WorkoutPhase.rest) &&
+    if (_isWoodClackEligiblePeriod() &&
         remainingMs <= _restClackLeadTime.inMilliseconds &&
         !_firedCuesThisPeriod.contains(cueWoodClack)) {
       _firedCuesThisPeriod.add(cueWoodClack);
@@ -226,6 +310,12 @@ class WorkoutEngine extends ChangeNotifier {
   }
 
   void _advanceFromCurrentPhase() {
+    if (_isSmoker) {
+      _advanceFromCurrentPhaseSmoker();
+      return;
+    }
+
+    // --- WorkoutConfig (Boxing / Custom) — preserved exactly as before ---
     switch (_phase) {
       case WorkoutPhase.preCountdown:
         _advanceToPhase(WorkoutPhase.work, round: 1);
@@ -237,7 +327,7 @@ class WorkoutEngine extends ChangeNotifier {
         // (which routes through endWorkout → _advanceToPhase(complete, …))
         // stays silent.
         audio.play(cueBellEnd);
-        if (_currentRound < config.totalRounds) {
+        if (_currentRound < (config as WorkoutConfig).totalRounds) {
           _advanceToPhase(WorkoutPhase.rest);
         } else {
           // Final round: skip the rest phase entirely. bell_end has already
@@ -252,6 +342,76 @@ class WorkoutEngine extends ChangeNotifier {
       case WorkoutPhase.rest:
         _advanceToPhase(WorkoutPhase.work, round: _currentRound + 1);
         break;
+      case WorkoutPhase.complete:
+        break;
+    }
+  }
+
+  void _advanceFromCurrentPhaseSmoker() {
+    final blocks = _blocks!;
+    switch (_phase) {
+      case WorkoutPhase.preCountdown:
+        // First content block of Smoker is always blockIdx=0 (V2: Boxing).
+        _advanceToPhase(WorkoutPhase.work, round: 1);
+        break;
+
+      case WorkoutPhase.work:
+        // Work-exit cue per block type.
+        switch (_currentBlockType!) {
+          case WorkoutBlockType.boxing:
+            audio.play(cueBellEnd);
+            break;
+          case WorkoutBlockType.tabata:
+            // Silent — next phase entry handles cue continuity.
+            break;
+          case WorkoutBlockType.transition:
+            // Transitions have no work phase; unreachable.
+            break;
+        }
+
+        final currentBlock = blocks[_blockIdx!];
+        final isLastRoundOfBlock =
+            _roundInCurrentBlock >= currentBlock.totalRounds;
+
+        if (!isLastRoundOfBlock) {
+          // Intra-block: next is rest. Round counter advances on rest-exit.
+          _advanceToPhase(WorkoutPhase.rest);
+        } else if (_blockIdx! + 1 < blocks.length) {
+          // Last round of a non-final block → enter the trailing transition.
+          _blockIdx = _blockIdx! + 1;
+          _currentBlockType = blocks[_blockIdx!].blockType;
+          _roundInCurrentBlock = 1; // transition is its own single period
+          _advanceToPhase(WorkoutPhase.rest);
+        } else {
+          // Last round of the LAST block → complete.
+          // If the last block is Boxing, bell_end already fired on work-exit
+          // above; suppress complete-entry to avoid a double bell. If the
+          // last block is Tabata, work-exit was silent — fire bell_end on
+          // complete-entry so the workout ends with the triumphant cue.
+          final lastBlockWasBoxing =
+              _currentBlockType == WorkoutBlockType.boxing;
+          _advanceToPhase(
+            WorkoutPhase.complete,
+            playCompletionCue: !lastBlockWasBoxing,
+          );
+        }
+        break;
+
+      case WorkoutPhase.rest:
+        if (_currentBlockType == WorkoutBlockType.transition) {
+          // Transition's single rest period is over — advance to the next
+          // (content) block's first work round.
+          _blockIdx = _blockIdx! + 1;
+          _currentBlockType = blocks[_blockIdx!].blockType;
+          _roundInCurrentBlock = 1;
+          _advanceToPhase(WorkoutPhase.work, round: _currentRound + 1);
+        } else {
+          // Intra-block rest → next round's work in the same block.
+          _roundInCurrentBlock++;
+          _advanceToPhase(WorkoutPhase.work, round: _currentRound + 1);
+        }
+        break;
+
       case WorkoutPhase.complete:
         break;
     }
@@ -273,18 +433,39 @@ class WorkoutEngine extends ChangeNotifier {
 
     switch (newPhase) {
       case WorkoutPhase.work:
-        audio.play(cueBellStart);
+        if (_isSmoker) {
+          switch (_currentBlockType!) {
+            case WorkoutBlockType.boxing:
+              audio.play(cueBellStart);
+              break;
+            case WorkoutBlockType.tabata:
+              audio.play(cueWhistleLong);
+              break;
+            case WorkoutBlockType.transition:
+              // Transitions have no work phase; unreachable.
+              break;
+          }
+        } else {
+          audio.play(cueBellStart);
+        }
         break;
       case WorkoutPhase.rest:
-        // Boxing cue contract: rest-entry is SILENT. whistle_long is
-        // reserved for the Smoker preset (Step 6) — the asset is still
-        // preloaded by AudioService but nothing fires it on Boxing.
+        // Non-Smoker (Boxing): rest-entry is SILENT. whistle_long is
+        // reserved for the Smoker preset — the asset stays preloaded by
+        // AudioService but nothing fires it on Boxing.
+        if (_isSmoker && _currentBlockType == WorkoutBlockType.tabata) {
+          // V2 COMPROMISE: whistle_double.mp3 has not been recorded yet.
+          // For V2.0 we fire a single whistle_long on Tabata rest-start.
+          // V2.1 task: record whistle_double, swap cue name here.
+          audio.play(cueWhistleLong);
+        }
+        // Boxing-block rest and transition rest are silent on entry.
         break;
       case WorkoutPhase.complete:
         // [playCompletionCue] is false on two paths:
         //   (1) user-initiated END (engine.endWorkout(playCompletionCue: false))
-        //   (2) natural final-round completion (bell_end already fired
-        //       on the work-exit side in _advanceFromCurrentPhase)
+        //   (2) natural final-round completion when work-exit already fired
+        //       bell_end (Boxing path; or Smoker last-block-is-Boxing).
         if (playCompletionCue) {
           audio.play(cueBellEnd);
         }
