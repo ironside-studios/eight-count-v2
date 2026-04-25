@@ -111,5 +111,24 @@
   "discard": "Discard",
   "@discard": { "description": "Destructive action in the unsaved-changes dialog" },
   "workoutNotFound": "Workout not found",
-  "@workoutNotFound": { "description": "SnackBar shown when /timer/custom/:id resolves to a preset that no longer exists (deleted between tap and navigation, bad deep link, etc.)" }
+  "@workoutNotFound": { "description": "SnackBar shown when /timer/custom/:id resolves to a preset that no longer exists (deleted between tap and navigation, bad deep link, etc.)" },
+  "smokerBlockLabel": "BLOCK {index} OF {total}",
+  "@smokerBlockLabel": {
+    "description": "Block index indicator shown above the round counter during a Smoker workout, e.g. 'BLOCK 2 OF 4'",
+    "placeholders": {
+      "index": {},
+      "total": {}
+    }
+  },
+  "smokerBlockTypeBoxing": "BOXING",
+  "@smokerBlockTypeBoxing": { "description": "Block type label used in the Smoker block header for Boxing-style blocks" },
+  "smokerBlockTypeTabata": "TABATA",
+  "@smokerBlockTypeTabata": { "description": "Block type label used in the Smoker block header for Tabata-style blocks" },
+  "smokerTransitionLabel": "TRANSITION → BLOCK {nextIndex}",
+  "@smokerTransitionLabel": {
+    "description": "Label shown during the rest-period transition between Smoker blocks, naming the upcoming block",
+    "placeholders": {
+      "nextIndex": {}
+    }
+  }
 }

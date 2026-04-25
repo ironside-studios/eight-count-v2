@@ -52,11 +52,13 @@ class HomeScreen extends StatelessWidget {
                     PresetCard(
                       title: l10n.smokerTitle,
                       subtitle: l10n.smokerMeta,
+                      // TODO(plumbing): gate Smoker behind Pro tier via
+                      // RevenueCat. Currently free for development. See V2
+                      // monetization spec. The lock pill stays on the card
+                      // until paywall lands so the visual hierarchy still
+                      // signals Pro intent.
                       isLocked: true,
-                      onTap: () {
-                        HapticFeedback.mediumImpact();
-                        // Paywall — wired in a later step
-                      },
+                      onTap: () => context.push('/timer/smoker'),
                     ),
                     const SizedBox(height: AppSpacing.base),
                     PresetCard(

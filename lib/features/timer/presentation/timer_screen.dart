@@ -10,10 +10,13 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 
 import 'package:eight_count/core/design/phase_colors.dart';
 import 'package:eight_count/core/engine/workout_engine.dart';
+import 'package:eight_count/core/models/smoker_config.dart';
+import 'package:eight_count/core/models/workout_block_type.dart';
 import 'package:eight_count/core/models/workout_config.dart';
 import 'package:eight_count/core/models/workout_phase.dart';
 import 'package:eight_count/core/services/audio_service.dart';
 import 'package:eight_count/core/utils/time_format.dart';
+import 'package:eight_count/features/timer/presentation/widgets/block_label.dart';
 import 'package:eight_count/generated/l10n/app_localizations.dart';
 import 'package:eight_count/main.dart' show audioService;
 
@@ -49,9 +52,11 @@ class TimerScreen extends StatefulWidget {
   final String presetId;
 
   /// Optional preset override. When non-null, this config drives the engine
-  /// directly — used by the Custom-preset route (Step 5.2). When null, the
-  /// screen falls back to the original presetId-keyed behaviour (Boxing).
-  final WorkoutConfig? overrideConfig;
+  /// directly — used by the Custom-preset route (Step 5.2) and any future
+  /// caller that wants to bypass the presetId-keyed factory dispatch.
+  /// Accepts [WorkoutConfig] or [SmokerConfig]; the engine validates at
+  /// runtime.
+  final Object? overrideConfig;
 
   @override
   State<TimerScreen> createState() => _TimerScreenState();
@@ -69,24 +74,21 @@ class _TimerScreenState extends State<TimerScreen> {
     // timer + missed cues. Failure is swallowed via catchError so wakelock
     // can never crash the flow.
     unawaited(_safeWakelock(enable: true));
+    Object? config;
     if (widget.overrideConfig != null) {
-      // Step 5.2: Custom-preset route passes the saved preset's config
-      // directly; no presetId-based lookup. Takes precedence over the
-      // Boxing branch by design (a caller passing both wants the override).
-      _engine = WorkoutEngine(
-        config: widget.overrideConfig!,
-        audio: audioService,
-      );
-      _engine!.addListener(_onEngineChange);
+      // Custom-preset route (and any future caller) passes a fully-built
+      // config directly. Takes precedence over the presetId-keyed factory.
+      config = widget.overrideConfig;
     } else if (widget.presetId == 'boxing') {
-      _engine = WorkoutEngine(
-        config: WorkoutConfig.boxing(),
-        audio: audioService,
-      );
+      config = WorkoutConfig.boxing();
+    } else if (widget.presetId == 'smoker') {
+      config = SmokerConfig.standard();
+    }
+    if (config != null) {
+      _engine = WorkoutEngine(config: config, audio: audioService);
       _engine!.addListener(_onEngineChange);
     } else {
-      // TODO Step 3.2.x: handle smoker/custom presets. For now, bounce home —
-      // these presets are locked/paywalled and should never route here yet.
+      // Unrecognized preset → bounce home rather than render an empty timer.
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && !_popped) {
           _popped = true;
@@ -107,11 +109,7 @@ class _TimerScreenState extends State<TimerScreen> {
     // rebuilds handle the label / ring-color / round-card swaps.
     if (engine.state.phase == WorkoutPhase.complete) {
       _popped = true;
-      // timer_screen only routes Boxing/Custom configs (Smoker bounces home
-      // in initState); Stage 1 of Phase 2b types engine.config as Object,
-      // so cast back to the WorkoutConfig the helper expects.
-      final int totalSeconds =
-          _totalWorkoutSeconds(engine.config as WorkoutConfig);
+      final int totalSeconds = _totalWorkoutSeconds(engine.config);
       final String presetId = widget.presetId;
       Future.delayed(const Duration(milliseconds: 50), () {
         if (!mounted) return;
@@ -130,26 +128,52 @@ class _TimerScreenState extends State<TimerScreen> {
   /// Full work + rest seconds for the configured workout (no pre-countdown).
   /// Boxing: 180*12 + 60*11 = 2820s = 47:00. Rest count is `totalRounds - 1`
   /// because the final round has no rest (work R12 → complete directly).
-  static int _totalWorkoutSeconds(WorkoutConfig config) {
-    final int workSec = config.workDuration.inSeconds * config.totalRounds;
-    final int restSec =
-        config.restDuration.inSeconds * (config.totalRounds - 1);
-    return workSec + restSec;
+  /// Smoker: sums every block's work + (rounds-1)×rest plus each transition.
+  static int _totalWorkoutSeconds(Object config) {
+    if (config is SmokerConfig) {
+      return config.totalDurationSeconds;
+    }
+    if (config is WorkoutConfig) {
+      final int workSec = config.workDuration.inSeconds * config.totalRounds;
+      final int restSec =
+          config.restDuration.inSeconds * (config.totalRounds - 1);
+      return workSec + restSec;
+    }
+    throw ArgumentError('Unknown config type: ${config.runtimeType}');
   }
 
   /// Remaining seconds on the whole work+rest cycle (pre-countdown excluded),
   /// derived from live engine state — never stored. Ceil'd so the last second
   /// stays on screen through its full tick.
   ///
+  /// Boxing/Custom (single block):
   ///   totalMs       = workMs * N   +  restMs * (N - 1)
   ///   elapsed[work] = (round-1) * (workMs + restMs) + (workMs - phaseRemainingMs)
   ///   elapsed[rest] = (round-1) * (workMs + restMs) + workMs + (restMs - phaseRemainingMs)
+  ///
+  /// Smoker: walks each block's contribution, summing whole completed blocks
+  /// and partially-completed periods up to the current point.
   static int _remainingTotalSeconds(
-    WorkoutConfig config,
+    Object config,
     WorkoutPhase phase,
     int currentRound,
-    int phaseRemainingMs,
-  ) {
+    int phaseRemainingMs, {
+    int? currentBlockIndex,
+    WorkoutBlockType? blockType,
+  }) {
+    if (config is SmokerConfig) {
+      return _remainingTotalSecondsSmoker(
+        config,
+        phase,
+        currentRound,
+        phaseRemainingMs,
+        currentBlockIndex: currentBlockIndex,
+        blockType: blockType,
+      );
+    }
+    if (config is! WorkoutConfig) {
+      throw ArgumentError('Unknown config type: ${config.runtimeType}');
+    }
     final int workMs = config.workDuration.inMilliseconds;
     final int restMs = config.restDuration.inMilliseconds;
     final int roundMs = workMs + restMs;
@@ -176,6 +200,126 @@ class _TimerScreenState extends State<TimerScreen> {
     }
     final int remainingMs = (totalMs - elapsedMs).clamp(0, totalMs);
     return (remainingMs / 1000).ceil();
+  }
+
+  /// Smoker variant of [_remainingTotalSeconds]. Walks the block list summing
+  /// elapsed time up to the engine's current position; returns total minus
+  /// elapsed, ceil'd to whole seconds.
+  static int _remainingTotalSecondsSmoker(
+    SmokerConfig config,
+    WorkoutPhase phase,
+    int currentRound,
+    int phaseRemainingMs, {
+    required int? currentBlockIndex,
+    required WorkoutBlockType? blockType,
+  }) {
+    final int totalMs = config.totalDurationSeconds * 1000;
+
+    if (phase == WorkoutPhase.preCountdown) {
+      return (totalMs / 1000).ceil();
+    }
+    if (phase == WorkoutPhase.complete) {
+      return 0;
+    }
+    if (currentBlockIndex == null || blockType == null) {
+      return (totalMs / 1000).ceil();
+    }
+
+    // Sum durations of all blocks fully completed BEFORE the current block.
+    // For Smoker the "block list" interleaves content + transitions; we
+    // walk them in order, tracking which content block index we're up to.
+    int elapsedMs = 0;
+    int contentIdx = 0; // 1-indexed content-block counter as we walk
+    int globalRoundsConsumed = 0;
+    for (final b in config.blocks) {
+      final bool isContent = b.blockType != WorkoutBlockType.transition;
+      if (isContent) contentIdx++;
+      final bool isCurrentBlock = (b.blockType == blockType) &&
+          (isContent
+              ? contentIdx == currentBlockIndex
+              : contentIdx == currentBlockIndex);
+      if (!isCurrentBlock) {
+        // Whole block lies entirely in the past relative to the engine.
+        // BUT only if its content-index is strictly less than the current
+        // content block (or, for transitions, the trailing transition of
+        // a strictly-earlier content block).
+        if (isContent) {
+          if (contentIdx < currentBlockIndex) {
+            elapsedMs += b.workDuration.inMilliseconds * b.totalRounds;
+            elapsedMs +=
+                b.restDuration.inMilliseconds * (b.totalRounds - 1);
+            globalRoundsConsumed += b.totalRounds;
+          }
+        } else {
+          // Transition — fully past iff its preceding content block is
+          // strictly less than the current content block.
+          if (contentIdx < currentBlockIndex) {
+            elapsedMs += b.restDuration.inMilliseconds;
+          }
+        }
+        continue;
+      }
+      // We're inside this block. Compute partial contribution.
+      if (isContent) {
+        final int roundInBlock =
+            (currentRound - globalRoundsConsumed).clamp(1, b.totalRounds);
+        final int priorRoundsInBlock = roundInBlock - 1;
+        elapsedMs +=
+            priorRoundsInBlock * b.workDuration.inMilliseconds +
+                priorRoundsInBlock * b.restDuration.inMilliseconds;
+        if (phase == WorkoutPhase.work) {
+          elapsedMs +=
+              b.workDuration.inMilliseconds - phaseRemainingMs;
+        } else {
+          // rest within a content block
+          elapsedMs += b.workDuration.inMilliseconds +
+              (b.restDuration.inMilliseconds - phaseRemainingMs);
+        }
+      } else {
+        // Transition rest
+        elapsedMs += b.restDuration.inMilliseconds - phaseRemainingMs;
+      }
+      break;
+    }
+
+    final int remainingMs = (totalMs - elapsedMs).clamp(0, totalMs);
+    return (remainingMs / 1000).ceil();
+  }
+
+  /// Block-local round info for the round counter card. For Boxing/Custom,
+  /// returns the engine's global round directly. For Smoker, subtracts prior
+  /// blocks' rounds so the user sees "ROUND 3 OF 8" within Block 2 (Tabata).
+  /// Returns null when no round card should be displayed (preCountdown,
+  /// complete, transition).
+  static ({int current, int total})? _roundForCounter({
+    required Object config,
+    required WorkoutPhase phase,
+    required int currentRound,
+    required int? currentBlockIndex,
+    required WorkoutBlockType? blockType,
+  }) {
+    if (phase != WorkoutPhase.work && phase != WorkoutPhase.rest) {
+      return null;
+    }
+    if (config is SmokerConfig) {
+      if (blockType == WorkoutBlockType.transition) return null;
+      int roundInBlock = currentRound;
+      int totalInBlock = 0;
+      for (final b in config.blocks) {
+        if (b.blockType == WorkoutBlockType.transition) continue;
+        if (roundInBlock <= b.totalRounds) {
+          totalInBlock = b.totalRounds;
+          break;
+        }
+        roundInBlock -= b.totalRounds;
+      }
+      if (totalInBlock == 0) return null;
+      return (current: roundInBlock, total: totalInBlock);
+    }
+    if (config is WorkoutConfig) {
+      return (current: currentRound, total: config.totalRounds);
+    }
+    return null;
   }
 
   void _handleStartTap() {
@@ -392,17 +536,42 @@ class _TimerScreenState extends State<TimerScreen> {
 
               final String? phaseLabel = _resolvePhaseLabel(phase, l10n);
               final bool showPhaseLabel = _started && phaseLabel != null;
+
+              final int? currentBlockIndex =
+                  engine?.state.currentBlockIndex;
+              final WorkoutBlockType? blockType = engine?.state.blockType;
+              final bool isSmoker = engine?.config is SmokerConfig;
+              final int totalContentBlocks = engine?.config is SmokerConfig
+                  ? (engine!.config as SmokerConfig).totalContentBlocks
+                  : 0;
+              final bool showBlockLabel = _started &&
+                  isSmoker &&
+                  currentBlockIndex != null &&
+                  blockType != null;
+
+              final ({int current, int total})? roundForCounter =
+                  engine == null
+                      ? null
+                      : _roundForCounter(
+                          config: engine.config,
+                          phase: phase,
+                          currentRound: engine.state.currentRound,
+                          currentBlockIndex: currentBlockIndex,
+                          blockType: blockType,
+                        );
               final bool showRoundCard =
-                  engine != null &&
+                  engine != null && roundForCounter != null;
+              final bool showTotalCard = engine != null &&
                   (phase == WorkoutPhase.work || phase == WorkoutPhase.rest);
-              final bool showTotalCard = showRoundCard;
               final int totalRemainingSec = engine == null
                   ? 0
                   : _remainingTotalSeconds(
-                      engine.config as WorkoutConfig,
+                      engine.config,
                       phase,
                       engine.state.currentRound,
                       engine.state.phaseRemaining.inMilliseconds,
+                      currentBlockIndex: currentBlockIndex,
+                      blockType: blockType,
                     );
 
               return Stack(
@@ -417,6 +586,14 @@ class _TimerScreenState extends State<TimerScreen> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         mainAxisSize: MainAxisSize.min,
                         children: [
+                          if (showBlockLabel) ...[
+                            BlockLabel(
+                              currentBlockIndex: currentBlockIndex,
+                              blockType: blockType,
+                              totalContentBlocks: totalContentBlocks,
+                            ),
+                            const SizedBox(height: 12),
+                          ],
                           if (showPhaseLabel) ...[
                             Text(
                               phaseLabel,
@@ -509,8 +686,8 @@ class _TimerScreenState extends State<TimerScreen> {
                             const SizedBox(height: 24),
                             _RoundCard(
                               label: l10n.roundCardLabel,
-                              currentRound: engine.state.currentRound,
-                              totalRounds: engine.state.totalRounds,
+                              currentRound: roundForCounter.current,
+                              totalRounds: roundForCounter.total,
                             ),
                           ],
                           if (showTotalCard) ...[

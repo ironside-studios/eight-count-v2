@@ -52,5 +52,9 @@
   "unsavedChangesTitle": "¿Descartar cambios?",
   "unsavedChangesBody": "Se perderán tus cambios.",
   "discard": "Descartar",
-  "workoutNotFound": "Entrenamiento no encontrado"
+  "workoutNotFound": "Entrenamiento no encontrado",
+  "smokerBlockLabel": "BLOQUE {index} DE {total}",
+  "smokerBlockTypeBoxing": "BOXEO",
+  "smokerBlockTypeTabata": "TABATA",
+  "smokerTransitionLabel": "TRANSICIÓN → BLOQUE {nextIndex}"
 }

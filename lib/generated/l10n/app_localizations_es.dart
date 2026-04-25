@@ -169,4 +169,20 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get workoutNotFound => 'Entrenamiento no encontrado';
+
+  @override
+  String smokerBlockLabel(Object index, Object total) {
+    return 'BLOQUE $index DE $total';
+  }
+
+  @override
+  String get smokerBlockTypeBoxing => 'BOXEO';
+
+  @override
+  String get smokerBlockTypeTabata => 'TABATA';
+
+  @override
+  String smokerTransitionLabel(Object nextIndex) {
+    return 'TRANSICIÓN → BLOQUE $nextIndex';
+  }
 }

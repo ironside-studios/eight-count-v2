@@ -169,4 +169,20 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get workoutNotFound => 'Workout not found';
+
+  @override
+  String smokerBlockLabel(Object index, Object total) {
+    return 'BLOCK $index OF $total';
+  }
+
+  @override
+  String get smokerBlockTypeBoxing => 'BOXING';
+
+  @override
+  String get smokerBlockTypeTabata => 'TABATA';
+
+  @override
+  String smokerTransitionLabel(Object nextIndex) {
+    return 'TRANSITION → BLOCK $nextIndex';
+  }
 }

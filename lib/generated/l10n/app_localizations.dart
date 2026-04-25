@@ -415,6 +415,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Workout not found'**
   String get workoutNotFound;
+
+  /// Block index indicator shown above the round counter during a Smoker workout, e.g. 'BLOCK 2 OF 4'
+  ///
+  /// In en, this message translates to:
+  /// **'BLOCK {index} OF {total}'**
+  String smokerBlockLabel(Object index, Object total);
+
+  /// Block type label used in the Smoker block header for Boxing-style blocks
+  ///
+  /// In en, this message translates to:
+  /// **'BOXING'**
+  String get smokerBlockTypeBoxing;
+
+  /// Block type label used in the Smoker block header for Tabata-style blocks
+  ///
+  /// In en, this message translates to:
+  /// **'TABATA'**
+  String get smokerBlockTypeTabata;
+
+  /// Label shown during the rest-period transition between Smoker blocks, naming the upcoming block
+  ///
+  /// In en, this message translates to:
+  /// **'TRANSITION → BLOCK {nextIndex}'**
+  String smokerTransitionLabel(Object nextIndex);
 }
 
 class _AppLocalizationsDelegate

@@ -26,6 +26,28 @@ class SmokerConfig {
       .where((b) => b.blockType != WorkoutBlockType.transition)
       .fold<int>(0, (sum, b) => sum + b.totalRounds);
 
+  /// Number of CONTENT blocks (transitions excluded). V2 standard = 4.
+  int get totalContentBlocks => blocks
+      .where((b) => b.blockType != WorkoutBlockType.transition)
+      .length;
+
+  /// Full work + rest seconds for the entire workout, EXCLUDING preCountdown
+  /// (matches the existing convention for `_totalWorkoutSeconds(WorkoutConfig)`
+  /// in TimerScreen — the warm-up does not count toward "total time").
+  /// V2 standard Smoker = 1380 + 60 + 230 + 60 + 1380 + 60 + 230 = 3400s.
+  int get totalDurationSeconds {
+    int total = 0;
+    for (final b in blocks) {
+      if (b.blockType == WorkoutBlockType.transition) {
+        total += b.restDuration.inSeconds;
+      } else {
+        total += b.workDuration.inSeconds * b.totalRounds;
+        total += b.restDuration.inSeconds * (b.totalRounds - 1);
+      }
+    }
+    return total;
+  }
+
   /// V2.0 Smoker preset (locked).
   ///
   /// Block 1: Boxing  6×180/60
