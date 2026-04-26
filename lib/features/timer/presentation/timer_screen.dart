@@ -545,13 +545,23 @@ class _TimerScreenState extends State<TimerScreen> {
               final WorkoutPhase phase =
                   engine?.state.phase ?? WorkoutPhase.preCountdown;
 
+              // Display math: floor remaining-ms-to-seconds so the digit reads the
+              // CURRENT second of the countdown, not the second it rounds up to.
+              // The engine fires audio cues on true ms boundaries (bell at 0ms,
+              // wood_clack at 12000ms / 11000ms). Using ceil would display "1" at
+              // remainingMs=500 — the user sees "0:01" the instant the bell rings,
+              // then a jump to "0:00" then to the next phase's starting second.
+              // Floor keeps the display honest: "0:00" displayed when bell fires.
+              //
+              // At round entry: phaseRemaining ≈ phaseDuration (e.g., 180000ms).
+              // 180000 ~/ 1000 = 180 → "3:00". Correct.
+              // At final tick: phaseRemaining ≈ 0ms.
+              // 0 ~/ 1000 = 0 → "0:00". Bell fires, phase advances. Correct.
               final int remainingSec = engine == null
                   ? 45
                   : (_started
-                      ? (engine.state.phaseRemaining.inMilliseconds / 1000)
-                          .ceil()
+                      ? (engine.state.phaseRemaining.inMilliseconds ~/ 1000)
                           .clamp(0, 9999)
-                          .toInt()
                       : engine.state.phaseDuration.inSeconds);
 
               // Pre-countdown reads as a hype countdown (raw seconds).
