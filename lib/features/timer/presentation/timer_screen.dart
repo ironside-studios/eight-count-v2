@@ -224,7 +224,7 @@ class _TimerScreenState extends State<TimerScreen> {
     final WorkoutPhase phase = engine.state.phase;
     final bool isFinalWorkRound = phase == WorkoutPhase.work &&
         engine.state.currentRound == engine.state.totalRounds &&
-        engine.state.phaseRemaining.inMilliseconds <= 1100;
+        engine.state.phaseRemaining.inMilliseconds <= 1000;
     final bool engineReachedComplete = phase == WorkoutPhase.complete;
 
     if (!_popped && (isFinalWorkRound || engineReachedComplete)) {
