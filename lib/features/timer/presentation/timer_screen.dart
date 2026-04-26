@@ -211,17 +211,27 @@ class _TimerScreenState extends State<TimerScreen> {
     // Intermediate transitions (preCountdown → work, work ↔ rest) stay on
     // this screen; AnimatedBuilder rebuilds handle the label / ring-color
     // / round-card swaps.
-    if (engine.state.phase == WorkoutPhase.complete) {
+    // Detect the "final round, about to complete" state and route to
+    // /complete at the same instant the early bell fires. The 1s-early
+    // bell shift means audio.play(cueBellEnd) ran when phaseRemaining
+    // was ~999ms in the final work round. We piggyback on that timing:
+    // when the timer ticks past the same threshold while still in the
+    // final work round, route immediately. Result: the complete screen
+    // appears as the bell starts ringing — no ":00" frame ever shown.
+    //
+    // _completedNaturally tells dispose() to NOT call AudioService.stopAll
+    // so the bell survives the route change.
+    final WorkoutPhase phase = engine.state.phase;
+    final bool isFinalWorkRound = phase == WorkoutPhase.work &&
+        engine.state.currentRound == engine.state.totalRounds &&
+        engine.state.phaseRemaining.inMilliseconds <= 1100;
+    final bool engineReachedComplete = phase == WorkoutPhase.complete;
+
+    if (!_popped && (isFinalWorkRound || engineReachedComplete)) {
       _popped = true;
       _completedNaturally = true;
       final int totalSeconds = _totalWorkoutSeconds(engine.config);
       final String presetId = widget.presetId;
-      // Route to /complete on the next frame — no hold delay. The bell
-      // started playing 1s before engine-zero (1s-early shift), so by the
-      // time we get here it has ~1.6s of clip remaining. By marking
-      // _completedNaturally = true we tell dispose() to skip its normal
-      // AudioService.stopAll() call — the bell finishes playing on its
-      // own across the route change to /complete and beyond.
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         context.go(
