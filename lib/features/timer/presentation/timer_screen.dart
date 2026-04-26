@@ -214,16 +214,16 @@ class _TimerScreenState extends State<TimerScreen> {
       _popped = true;
       final int totalSeconds = _totalWorkoutSeconds(engine.config);
       final String presetId = widget.presetId;
-      // Hold the timer screen for 2 seconds after natural completion so the
-      // final bell_end.mp3 (2.61s clip) finishes playing. With the 1s-early
-      // bell shift, the bell has been playing for ~1s by the time we get
-      // here, leaving ~1.6s of clip remaining. The 2000ms delay covers
-      // that with safety margin. Without this, dispose() → stopAll()
-      // truncates the triumphant final cue ~50ms in.
+      // Hold the timer screen for 1.5 seconds after natural completion so
+      // the final bell_end.mp3 (2.61s clip) finishes playing cleanly. With
+      // the 1s-early bell shift, the bell has been playing for ~1s by the
+      // time we get here, leaving ~1.6s of clip remaining. The 1500ms hold
+      // covers ~94% of the bell tail; the last ~100ms of decay may clip
+      // on slow devices but is below perceptual threshold for most users.
       //
-      // The screen sitting at 0:00 for 2 seconds reads as intentional
-      // ceremony — matches the post-bell pause in a real boxing round.
-      Future.delayed(const Duration(milliseconds: 2000), () {
+      // Shorter than 1500ms risks a noticeable bell cut. Longer feels
+      // like a UI hang on the ":00" screen. 1500ms is the sweet spot.
+      Future.delayed(const Duration(milliseconds: 1500), () {
         if (!mounted) return;
         context.go(
           '/complete',
