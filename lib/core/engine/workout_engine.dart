@@ -428,9 +428,6 @@ class WorkoutEngine extends ChangeNotifier {
       final cueKey = _earlyBellCueForPhaseEnd();
       if (cueKey != null && !_firedCuesThisPeriod.contains(cueKey)) {
         _firedCuesThisPeriod.add(cueKey);
-        if (kDebugMode) {
-          debugPrint('[BELL-EARLY] $cueKey fired  phase=$_phase  remMs=$remainingMs  round=$_currentRound');
-        }
         audio.play(cueKey);
       }
     }
@@ -459,10 +456,6 @@ class WorkoutEngine extends ChangeNotifier {
         // We fire it HERE on the work-exit side so user-initiated END
         // (which routes through endWorkout → _advanceToPhase(complete, …))
         // stays silent.
-        if (kDebugMode) {
-          final remMs = _phaseEndsAt?.difference(_clock()).inMilliseconds ?? -999;
-          debugPrint('[BELL-FIRE] bell_end called  phase=work_exit  remMs=$remMs  round=$_currentRound');
-        }
         // audio.play(cueBellEnd); // SUPPRESSED: fired 1s early by _pollState (option-b shift)
         if (_currentRound < (config as WorkoutConfig).totalRounds) {
           _advanceToPhase(WorkoutPhase.rest);
@@ -496,10 +489,6 @@ class WorkoutEngine extends ChangeNotifier {
         // Work-exit cue per block type.
         switch (_currentBlockType!) {
           case WorkoutBlockType.boxing:
-            if (kDebugMode) {
-              final remMs = _phaseEndsAt?.difference(_clock()).inMilliseconds ?? -999;
-              debugPrint('[BELL-FIRE] bell_end called  phase=work_exit  remMs=$remMs  round=$_currentRound');
-            }
             // audio.play(cueBellEnd); // SUPPRESSED: fired 1s early by _pollState (option-b shift)
             break;
           case WorkoutBlockType.tabata:
