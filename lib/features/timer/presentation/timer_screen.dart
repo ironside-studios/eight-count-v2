@@ -170,6 +170,7 @@ class _TimerScreenState extends State<TimerScreen> {
   WorkoutEngine? _engine;
   bool _started = false;
   bool _popped = false;
+  bool _completedNaturally = false;
 
   @override
   void initState() {
@@ -212,18 +213,16 @@ class _TimerScreenState extends State<TimerScreen> {
     // / round-card swaps.
     if (engine.state.phase == WorkoutPhase.complete) {
       _popped = true;
+      _completedNaturally = true;
       final int totalSeconds = _totalWorkoutSeconds(engine.config);
       final String presetId = widget.presetId;
-      // Hold the timer screen for 1.5 seconds after natural completion so
-      // the final bell_end.mp3 (2.61s clip) finishes playing cleanly. With
-      // the 1s-early bell shift, the bell has been playing for ~1s by the
-      // time we get here, leaving ~1.6s of clip remaining. The 1500ms hold
-      // covers ~94% of the bell tail; the last ~100ms of decay may clip
-      // on slow devices but is below perceptual threshold for most users.
-      //
-      // Shorter than 1500ms risks a noticeable bell cut. Longer feels
-      // like a UI hang on the ":00" screen. 1500ms is the sweet spot.
-      Future.delayed(const Duration(milliseconds: 1500), () {
+      // Route to /complete on the next frame — no hold delay. The bell
+      // started playing 1s before engine-zero (1s-early shift), so by the
+      // time we get here it has ~1.6s of clip remaining. By marking
+      // _completedNaturally = true we tell dispose() to skip its normal
+      // AudioService.stopAll() call — the bell finishes playing on its
+      // own across the route change to /complete and beyond.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         context.go(
           '/complete',
@@ -461,7 +460,15 @@ class _TimerScreenState extends State<TimerScreen> {
     // after the workout ends. Not awaited — dispose() stays sync; the
     // `_cancelled` flag flips immediately and pending player.stop() calls
     // resolve in the background.
-    unawaited(AudioService.instance.stopAll());
+    // Only stop in-flight audio when the workout did NOT complete naturally.
+    // Natural completion lets bell_end.mp3 finish playing across the route
+    // change to /complete — the user expects to hear the full triple bell
+    // even as the screen transitions. Abandons (STOP→END), app
+    // backgrounding, and navigation away all still hit stopAll() so we
+    // never leak playback onto unrelated screens.
+    if (!_completedNaturally) {
+      unawaited(AudioService.instance.stopAll());
+    }
     final engine = _engine;
     if (engine != null) {
       engine.removeListener(_onEngineChange);
