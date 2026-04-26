@@ -289,9 +289,15 @@ class WorkoutEngine extends ChangeNotifier {
   }
 
   /// Lead time before the current phase ends at which wood_clack fires.
-  /// preCountdown gets 12s; work/rest keep the existing 11s contract.
+  /// Boxing preset uses 12s for ALL phases (preCountdown, work, rest).
+  /// Custom and Smoker presets keep the legacy 11s contract for work/rest
+  /// (preCountdown still uses 12s for them via the eligibility gate).
   Duration _woodClackLeadTimeForCurrentPhase() {
     if (_phase == WorkoutPhase.preCountdown) {
+      return const Duration(seconds: 12);
+    }
+    // Work or rest: Boxing preset gets the longer 12s warning.
+    if (!_isSmoker && _presetId == 'boxing') {
       return const Duration(seconds: 12);
     }
     return _restClackLeadTime;
