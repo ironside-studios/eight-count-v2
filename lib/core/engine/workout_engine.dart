@@ -263,12 +263,15 @@ class WorkoutEngine extends ChangeNotifier {
   }
 
   /// True iff the current period is one in which wood_clack should fire
-  /// at the 11s-remaining mark.
-  ///   - Boxing preset:  work or rest
-  ///   - Smoker preset:  Boxing-block work or rest, OR a transition rest
+  /// as the period approaches its end.
+  ///   - preCountdown:   ALL presets (fires at 12s remaining)
+  ///   - Boxing preset:  work or rest (fires at 11s remaining)
+  ///   - Smoker preset:  Boxing-block work or rest, OR transition rest (11s)
   ///   - Tabata blocks:  never (periods too short for an 11s warning)
-  ///   - preCountdown:   never
   bool _isWoodClackEligiblePeriod() {
+    if (_phase == WorkoutPhase.preCountdown) {
+      return true;
+    }
     if (_phase != WorkoutPhase.work && _phase != WorkoutPhase.rest) {
       return false;
     }
@@ -282,8 +285,16 @@ class WorkoutEngine extends ChangeNotifier {
           return _phase == WorkoutPhase.rest;
       }
     }
-    // Boxing / Custom single-block configs.
     return _presetId == 'boxing';
+  }
+
+  /// Lead time before the current phase ends at which wood_clack fires.
+  /// preCountdown gets 12s; work/rest keep the existing 11s contract.
+  Duration _woodClackLeadTimeForCurrentPhase() {
+    if (_phase == WorkoutPhase.preCountdown) {
+      return const Duration(seconds: 12);
+    }
+    return _restClackLeadTime;
   }
 
   void _onTick(Duration _) => _pollState();
@@ -296,7 +307,7 @@ class WorkoutEngine extends ChangeNotifier {
     final remainingMs = _phaseEndsAt!.difference(_clock()).inMilliseconds;
 
     if (_isWoodClackEligiblePeriod() &&
-        remainingMs <= _restClackLeadTime.inMilliseconds &&
+        remainingMs <= _woodClackLeadTimeForCurrentPhase().inMilliseconds &&
         !_firedCuesThisPeriod.contains(cueWoodClack)) {
       _firedCuesThisPeriod.add(cueWoodClack);
       audio.play(cueWoodClack);
