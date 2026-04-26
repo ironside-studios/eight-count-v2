@@ -207,15 +207,23 @@ class _TimerScreenState extends State<TimerScreen> {
     final engine = _engine;
     if (engine == null) return;
     // Natural completion → route to the complete screen (stack replacement).
-    // 50ms delay matches _handleStop so bell_end has a moment to start
-    // playing before the route change. Intermediate transitions
-    // (preCountdown → work, work ↔ rest) stay on this screen; AnimatedBuilder
-    // rebuilds handle the label / ring-color / round-card swaps.
+    // Intermediate transitions (preCountdown → work, work ↔ rest) stay on
+    // this screen; AnimatedBuilder rebuilds handle the label / ring-color
+    // / round-card swaps.
     if (engine.state.phase == WorkoutPhase.complete) {
       _popped = true;
       final int totalSeconds = _totalWorkoutSeconds(engine.config);
       final String presetId = widget.presetId;
-      Future.delayed(const Duration(milliseconds: 50), () {
+      // Hold the timer screen for 2 seconds after natural completion so the
+      // final bell_end.mp3 (2.61s clip) finishes playing. With the 1s-early
+      // bell shift, the bell has been playing for ~1s by the time we get
+      // here, leaving ~1.6s of clip remaining. The 2000ms delay covers
+      // that with safety margin. Without this, dispose() → stopAll()
+      // truncates the triumphant final cue ~50ms in.
+      //
+      // The screen sitting at 0:00 for 2 seconds reads as intentional
+      // ceremony — matches the post-bell pause in a real boxing round.
+      Future.delayed(const Duration(milliseconds: 2000), () {
         if (!mounted) return;
         context.go(
           '/complete',
