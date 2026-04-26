@@ -491,16 +491,33 @@ class _TimerScreenState extends State<TimerScreen> {
   }
 
   /// Maps the engine's phase to the user-facing label shown above the ring.
-  /// Returns `null` for [WorkoutPhase.complete] — the screen is popping, we
-  /// don't want a celebratory label flashing as the route unwinds.
-  String? _resolvePhaseLabel(WorkoutPhase phase, AppLocalizations l10n) {
+  /// During work/rest the label IS the round counter ("ROUND 1 / 12"); the
+  /// _RoundCard widget below the buttons is gone in this layout. Returns
+  /// `null` for [WorkoutPhase.complete] so the route can unwind silently.
+  /// Falls back to plain phase strings ("WORK", "REST") only when the
+  /// round counter is unavailable (e.g., Smoker transitions).
+  String? _resolvePhaseLabel(
+    WorkoutPhase phase,
+    AppLocalizations l10n,
+    ({int current, int total})? roundForCounter,
+  ) {
     switch (phase) {
       case WorkoutPhase.preCountdown:
         return l10n.phaseGetReady;
       case WorkoutPhase.work:
-        return l10n.phaseWork;
+        return roundForCounter != null
+            ? l10n.roundLabel(
+                roundForCounter.current.toString(),
+                roundForCounter.total.toString(),
+              )
+            : l10n.phaseWork;
       case WorkoutPhase.rest:
-        return l10n.phaseRest;
+        return roundForCounter != null
+            ? l10n.roundLabel(
+                roundForCounter.current.toString(),
+                roundForCounter.total.toString(),
+              )
+            : l10n.phaseRest;
       case WorkoutPhase.complete:
         return null;
     }
@@ -550,12 +567,10 @@ class _TimerScreenState extends State<TimerScreen> {
                       .clamp(0.0, 1.0);
 
               final Color phaseColor = colorForPhase(phase);
-              // Ring carries phase state; digit + label flip to white during
-              // work/rest for maximum OLED contrast and glance-readability.
+              // Ring + the big digit stay white-on-phase-color; the new
+              // label (round counter) takes its color directly from
+              // colorForPhase so green = work, red = rest, gold = GET READY.
               final Color digitColor = digitColorForPhase(phase);
-
-              final String? phaseLabel = _resolvePhaseLabel(phase, l10n);
-              final bool showPhaseLabel = _started && phaseLabel != null;
 
               final int? currentBlockIndex =
                   engine?.state.currentBlockIndex;
@@ -579,8 +594,11 @@ class _TimerScreenState extends State<TimerScreen> {
                           currentBlockIndex: currentBlockIndex,
                           blockType: blockType,
                         );
-              final bool showRoundCard =
-                  engine != null && roundForCounter != null;
+
+              final String? phaseLabel =
+                  _resolvePhaseLabel(phase, l10n, roundForCounter);
+              final bool showPhaseLabel = _started && phaseLabel != null;
+
               final bool showTotalCard = engine != null &&
                   (phase == WorkoutPhase.work || phase == WorkoutPhase.rest);
               final int totalRemainingSec = engine == null
@@ -625,7 +643,7 @@ class _TimerScreenState extends State<TimerScreen> {
                             style: GoogleFonts.bebasNeue(
                               fontSize: 52,
                               fontWeight: FontWeight.w700,
-                              color: digitColor,
+                              color: phaseColor,
                               letterSpacing: 3,
                             ),
                           ),
@@ -707,19 +725,15 @@ class _TimerScreenState extends State<TimerScreen> {
                               ],
                             ],
                           ),
-                        if (showRoundCard) ...[
-                          const SizedBox(height: 24),
-                          _RoundCard(
-                            label: l10n.roundCardLabel,
-                            currentRound: roundForCounter.current,
-                            totalRounds: roundForCounter.total,
-                          ),
-                        ],
                         if (showTotalCard) ...[
                           const SizedBox(height: 16),
-                          _TotalTimeCard(
-                            label: l10n.totalTimeCardLabel,
-                            remainingTotalSeconds: totalRemainingSec,
+                          Padding(
+                            padding:
+                                const EdgeInsets.symmetric(horizontal: 16),
+                            child: _TotalTimeCard(
+                              label: l10n.totalTimeCardLabel,
+                              remainingTotalSeconds: totalRemainingSec,
+                            ),
                           ),
                         ],
                         const Spacer(flex: 1),
@@ -819,6 +833,11 @@ class _TimerActionButton extends StatelessWidget {
 /// Round counter card — compact readout below the action buttons during
 /// work/rest phases. Same surface color + gold-tinted border as the home
 /// screen preset cards so the design system stays coherent.
+///
+/// Currently unused: the round counter moved up into the phase-label slot
+/// above the ring. Class is parked here intentionally so the layout can be
+/// revived without a re-write if a future design wants both label + card.
+// ignore: unused_element
 class _RoundCard extends StatelessWidget {
   const _RoundCard({
     required this.label,
@@ -910,9 +929,11 @@ class _CountdownRingPainter extends CustomPainter {
       old.strokeWidth != strokeWidth;
 }
 
-/// Total workout time remaining card — shown below the round card during
-/// work/rest phases. Neutral white-on-charcoal so it reads as reference info
-/// rather than phase state. Derived from engine state, never stored.
+/// Total workout time remaining card — dominant bottom-screen element on
+/// the timer. Stacks a small grey "TOTAL" header above the big white M:SS
+/// digits so the time-remaining figure reads from across the gym. Stretches
+/// to fill its parent's width; height is locked to 120 to seat cleanly
+/// inside the timer column's bottom Spacer.
 class _TotalTimeCard extends StatelessWidget {
   const _TotalTimeCard({
     required this.label,
@@ -925,22 +946,38 @@ class _TotalTimeCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 220,
-      height: 72,
+      width: double.infinity,
+      height: 120,
       decoration: BoxDecoration(
         color: const Color(0xFF141414),
         border: Border.all(color: const Color(0x1AF5C518), width: 1),
         borderRadius: BorderRadius.circular(14),
       ),
       alignment: Alignment.center,
-      child: Text(
-        '$label ${formatMmSs(remainingTotalSeconds)}',
-        style: GoogleFonts.bebasNeue(
-          fontSize: 40,
-          fontWeight: FontWeight.w700,
-          color: const Color(0xFFFFFFFF),
-          letterSpacing: 2,
-        ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: GoogleFonts.bebasNeue(
+              fontSize: 24,
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFF8A8A8A),
+              letterSpacing: 2,
+            ),
+          ),
+          Text(
+            formatMmSs(remainingTotalSeconds),
+            style: GoogleFonts.bebasNeue(
+              fontSize: 80,
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFFFFFFFF),
+              letterSpacing: 2,
+              height: 1.0,
+            ),
+          ),
+        ],
       ),
     );
   }
