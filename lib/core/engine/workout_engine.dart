@@ -303,6 +303,104 @@ class WorkoutEngine extends ChangeNotifier {
     return _restClackLeadTime;
   }
 
+  /// Returns the cue that should fire 1s before the current phase ends,
+  /// or null if no early bell is desired for this phase.
+  ///
+  ///   - preCountdown ends → bell_start (work begins next, all presets)
+  ///       except Smoker entering a Tabata block, which uses whistle_long
+  ///       on phase entry — silent on the preCountdown side here so we
+  ///       don't double-cue.
+  ///   - work ends:
+  ///       * non-final round → bell_end (rest follows)
+  ///       * final round (last round of last block in Smoker, or last
+  ///         round of Boxing/Custom) → bell_end (workout completes)
+  ///       Smoker Tabata work ends silently (whistle_long on rest entry
+  ///       handles the cue).
+  ///   - rest ends → null (rest-end is signaled by the next work's
+  ///     bell_start, which we fire 1s before THIS rest ends — covered
+  ///     by the work-entry cue path on the next phase, NOT here).
+  ///   - complete: never reached (engine stopped).
+  String? _earlyBellCueForPhaseEnd() {
+    switch (_phase) {
+      case WorkoutPhase.preCountdown:
+        // Fire bell_start (or whistle_long for Smoker Tabata first block)
+        // 1s before preCountdown ends.
+        if (_isSmoker) {
+          final firstBlock = _blocks!.first;
+          switch (firstBlock.blockType) {
+            case WorkoutBlockType.boxing:
+              return cueBellStart;
+            case WorkoutBlockType.tabata:
+              return cueWhistleLong;
+            case WorkoutBlockType.transition:
+              return null;
+          }
+        }
+        return cueBellStart;
+
+      case WorkoutPhase.work:
+        if (_isSmoker) {
+          switch (_currentBlockType!) {
+            case WorkoutBlockType.boxing:
+              return cueBellEnd;
+            case WorkoutBlockType.tabata:
+              // Tabata transitions to rest silently; whistle_long fires
+              // on rest entry.
+              return null;
+            case WorkoutBlockType.transition:
+              return null;
+          }
+        }
+        return cueBellEnd;
+
+      case WorkoutPhase.rest:
+        // The NEXT phase's bell_start (or block-equivalent) is fired
+        // pre-emptively as that phase's preCountdown-equivalent shift.
+        // But there's no preCountdown before "work after rest" — work
+        // starts immediately. So fire bell_start 1s before rest ends.
+        if (_isSmoker) {
+          // Determine what the next phase will be.
+          final blocks = _blocks!;
+          final currentBlock = blocks[_blockIdx!];
+          final isLastRoundOfBlock =
+              _roundInCurrentBlock >= currentBlock.totalRounds;
+          if (currentBlock.blockType == WorkoutBlockType.transition) {
+            // Transition rest ends → next content block's first work.
+            final nextBlock = blocks[_blockIdx! + 1];
+            switch (nextBlock.blockType) {
+              case WorkoutBlockType.boxing:
+                return cueBellStart;
+              case WorkoutBlockType.tabata:
+                return cueWhistleLong;
+              case WorkoutBlockType.transition:
+                return null;
+            }
+          }
+          if (isLastRoundOfBlock) {
+            // Intra-block rest after the last work round? In current
+            // engine architecture, last round of a block transitions
+            // directly from work → next block (no rest). So this branch
+            // is unreachable, but defensively return null.
+            return null;
+          }
+          // Standard intra-block rest → next work in same block.
+          switch (currentBlock.blockType) {
+            case WorkoutBlockType.boxing:
+              return cueBellStart;
+            case WorkoutBlockType.tabata:
+              return cueWhistleLong;
+            case WorkoutBlockType.transition:
+              return null;
+          }
+        }
+        // Boxing / Custom: rest → next work, fire bell_start.
+        return cueBellStart;
+
+      case WorkoutPhase.complete:
+        return null;
+    }
+  }
+
   void _onTick(Duration _) => _pollState();
 
   void _pollState() {
@@ -317,6 +415,24 @@ class WorkoutEngine extends ChangeNotifier {
         !_firedCuesThisPeriod.contains(cueWoodClack)) {
       _firedCuesThisPeriod.add(cueWoodClack);
       audio.play(cueWoodClack);
+    }
+
+    // Fire phase-end / phase-entry bells 1 second early so the display
+    // reads the full duration of the new phase instead of sitting on "0"
+    // for a beat. The phase boundary itself is unchanged at remainingMs=0;
+    // only the audio cue is shifted forward.
+    //
+    // Per-cue keys ensure each bell fires at most once per phase, in line
+    // with the existing wood_clack contract.
+    if (remainingMs <= 1000 && remainingMs > 0) {
+      final cueKey = _earlyBellCueForPhaseEnd();
+      if (cueKey != null && !_firedCuesThisPeriod.contains(cueKey)) {
+        _firedCuesThisPeriod.add(cueKey);
+        if (kDebugMode) {
+          debugPrint('[BELL-EARLY] $cueKey fired  phase=$_phase  remMs=$remainingMs  round=$_currentRound');
+        }
+        audio.play(cueKey);
+      }
     }
 
     if (remainingMs <= 0) {
@@ -343,7 +459,11 @@ class WorkoutEngine extends ChangeNotifier {
         // We fire it HERE on the work-exit side so user-initiated END
         // (which routes through endWorkout → _advanceToPhase(complete, …))
         // stays silent.
-        audio.play(cueBellEnd);
+        if (kDebugMode) {
+          final remMs = _phaseEndsAt?.difference(_clock()).inMilliseconds ?? -999;
+          debugPrint('[BELL-FIRE] bell_end called  phase=work_exit  remMs=$remMs  round=$_currentRound');
+        }
+        // audio.play(cueBellEnd); // SUPPRESSED: fired 1s early by _pollState (option-b shift)
         if (_currentRound < (config as WorkoutConfig).totalRounds) {
           _advanceToPhase(WorkoutPhase.rest);
         } else {
@@ -376,7 +496,11 @@ class WorkoutEngine extends ChangeNotifier {
         // Work-exit cue per block type.
         switch (_currentBlockType!) {
           case WorkoutBlockType.boxing:
-            audio.play(cueBellEnd);
+            if (kDebugMode) {
+              final remMs = _phaseEndsAt?.difference(_clock()).inMilliseconds ?? -999;
+              debugPrint('[BELL-FIRE] bell_end called  phase=work_exit  remMs=$remMs  round=$_currentRound');
+            }
+            // audio.play(cueBellEnd); // SUPPRESSED: fired 1s early by _pollState (option-b shift)
             break;
           case WorkoutBlockType.tabata:
             // Silent — next phase entry handles cue continuity.
@@ -453,17 +577,17 @@ class WorkoutEngine extends ChangeNotifier {
         if (_isSmoker) {
           switch (_currentBlockType!) {
             case WorkoutBlockType.boxing:
-              audio.play(cueBellStart);
+              // audio.play(cueBellStart); // SUPPRESSED: fired 1s early by _pollState (option-b shift)
               break;
             case WorkoutBlockType.tabata:
-              audio.play(cueWhistleLong);
+              // audio.play(cueWhistleLong); // SUPPRESSED: fired 1s early by _pollState (option-b shift)
               break;
             case WorkoutBlockType.transition:
               // Transitions have no work phase; unreachable.
               break;
           }
         } else {
-          audio.play(cueBellStart);
+          // audio.play(cueBellStart); // SUPPRESSED: fired 1s early by _pollState (option-b shift)
         }
         break;
       case WorkoutPhase.rest:
@@ -474,7 +598,7 @@ class WorkoutEngine extends ChangeNotifier {
           // V2 COMPROMISE: whistle_double.mp3 has not been recorded yet.
           // For V2.0 we fire a single whistle_long on Tabata rest-start.
           // V2.1 task: record whistle_double, swap cue name here.
-          audio.play(cueWhistleLong);
+          // audio.play(cueWhistleLong); // SUPPRESSED: fired 1s early by _pollState (option-b shift)
         }
         // Boxing-block rest and transition rest are silent on entry.
         break;
