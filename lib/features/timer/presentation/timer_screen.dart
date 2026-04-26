@@ -211,28 +211,23 @@ class _TimerScreenState extends State<TimerScreen> {
     // Intermediate transitions (preCountdown → work, work ↔ rest) stay on
     // this screen; AnimatedBuilder rebuilds handle the label / ring-color
     // / round-card swaps.
-    // Detect the "final round, about to complete" state and route to
-    // /complete at the same instant the early bell fires. The 1s-early
-    // bell shift means audio.play(cueBellEnd) ran when phaseRemaining
-    // was ~999ms in the final work round. We piggyback on that timing:
-    // when the timer ticks past the same threshold while still in the
-    // final work round, route immediately. Result: the complete screen
-    // appears as the bell starts ringing — no ":00" frame ever shown.
+    // Wait for the engine to reach WorkoutPhase.complete naturally, then
+    // hold for 1 second on the ":00" screen before routing. This gives the
+    // user a deliberate visual closure for the final round:
+    //   0:02 → 0:01 → BELL FIRES → 0:00 (held for 1s) → /complete screen
     //
-    // _completedNaturally tells dispose() to NOT call AudioService.stopAll
-    // so the bell survives the route change.
-    final WorkoutPhase phase = engine.state.phase;
-    final bool isFinalWorkRound = phase == WorkoutPhase.work &&
-        engine.state.currentRound == engine.state.totalRounds &&
-        engine.state.phaseRemaining.inMilliseconds <= 1000;
-    final bool engineReachedComplete = phase == WorkoutPhase.complete;
-
-    if (!_popped && (isFinalWorkRound || engineReachedComplete)) {
+    // The bell started 1s before engine-complete (1s-early shift), so by
+    // the time engine reaches complete the bell has been playing ~1s with
+    // ~1.6s of clip remaining. We hold 1 more second on ":00", then route
+    // — bell still has ~600ms of tail playing as the complete screen
+    // appears. _completedNaturally tells dispose() to skip stopAll() so
+    // the bell finishes cleanly across the route change.
+    if (!_popped && engine.state.phase == WorkoutPhase.complete) {
       _popped = true;
       _completedNaturally = true;
       final int totalSeconds = _totalWorkoutSeconds(engine.config);
       final String presetId = widget.presetId;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
+      Future.delayed(const Duration(milliseconds: 1000), () {
         if (!mounted) return;
         context.go(
           '/complete',
