@@ -69,6 +69,7 @@ class WorkoutEngine extends ChangeNotifier {
   static const String cueBellStart = 'bell_start';
   static const String cueBellEnd = 'bell_end';
   static const String cueWhistleLong = 'whistle_long';
+  static const String cueWhistleDouble = 'whistle_double';
 
   /// Lead time before a Boxing rest period ends at which wood_clack fires.
   /// Equivalent to "remaining ≤ 11000ms" in tick math.
@@ -280,6 +281,10 @@ class WorkoutEngine extends ChangeNotifier {
         case WorkoutBlockType.boxing:
           return true;
         case WorkoutBlockType.tabata:
+          // Tabata identity rule: NO clack in Tabata work blocks ever
+          // (locked 4/28/26). This branch runs FIRST relative to any
+          // duration-based suppression — Tabata gets no warning regardless
+          // of work-period length, including hypothetical longer Tabatas.
           return false;
         case WorkoutBlockType.transition:
           return _phase == WorkoutPhase.rest;
@@ -417,6 +422,21 @@ class WorkoutEngine extends ChangeNotifier {
       audio.play(cueWoodClack);
     }
 
+    // Tabata work 10-second warning: whistle_double fires at remaining ≤
+    // 11000ms (1-second-early shift parallel to bell cues — the 2.04s clip
+    // finishes at ~9s remaining, well before bell_end at ~1s remaining).
+    // Idempotent via _firedCuesThisPeriod. Tabata work only — Boxing work
+    // gets wood_clack via the eligibility branch above; Tabata gets
+    // whistle_double here as its analog 10s-out warning.
+    if (_isSmoker &&
+        _phase == WorkoutPhase.work &&
+        _currentBlockType == WorkoutBlockType.tabata &&
+        remainingMs <= 11000 &&
+        !_firedCuesThisPeriod.contains(cueWhistleDouble)) {
+      _firedCuesThisPeriod.add(cueWhistleDouble);
+      audio.play(cueWhistleDouble);
+    }
+
     // Fire phase-end / phase-entry bells 1 second early so the display
     // reads the full duration of the new phase instead of sitting on "0"
     // for a beat. The phase boundary itself is unchanged at remainingMs=0;
@@ -427,7 +447,22 @@ class WorkoutEngine extends ChangeNotifier {
     if (remainingMs <= 1000 && remainingMs > 0) {
       final cueKey = _earlyBellCueForPhaseEnd();
       if (cueKey != null && !_firedCuesThisPeriod.contains(cueKey)) {
+        // [CUE-DEBUG] schedule site — early-bell decided to fire this cue.
+        // Logged only for whistle_long to keep diagnosis focused on Bug 2.
+        if (cueKey == cueWhistleLong) {
+          print('[CUE-DEBUG] ${DateTime.now().millisecondsSinceEpoch} | '
+              'schedule:whistle_long | '
+              'block=${_userFacingBlockIndex()} phase=$_phase '
+              'round=$_currentRound | remainingMs=$remainingMs');
+        }
         _firedCuesThisPeriod.add(cueKey);
+        // [CUE-DEBUG] dispatch site — actual AudioService.play() call.
+        if (cueKey == cueWhistleLong) {
+          print('[CUE-DEBUG] ${DateTime.now().millisecondsSinceEpoch} | '
+              'dispatch:whistle_long | '
+              'block=${_userFacingBlockIndex()} phase=$_phase '
+              'round=$_currentRound | remainingMs=$remainingMs');
+        }
         audio.play(cueKey);
       }
     }
@@ -569,6 +604,16 @@ class WorkoutEngine extends ChangeNotifier {
               // audio.play(cueBellStart); // SUPPRESSED: fired 1s early by _pollState (option-b shift)
               break;
             case WorkoutBlockType.tabata:
+              // [CUE-DEBUG] phase transition site — engine just entered
+              // Tabata work. Logged for Bug 2 diagnosis to compare against
+              // schedule:whistle_long / dispatch:whistle_long timestamps
+              // emitted from _pollState during the preceding rest's last
+              // second.
+              print('[CUE-DEBUG] ${DateTime.now().millisecondsSinceEpoch} | '
+                  'transition:tabata_work_entry | '
+                  'block=${_userFacingBlockIndex()} phase=$_phase '
+                  'round=$_currentRound | '
+                  'remainingMs=${_phaseEndsAt?.difference(_clock()).inMilliseconds ?? -1}');
               // audio.play(cueWhistleLong); // SUPPRESSED: fired 1s early by _pollState (option-b shift)
               break;
             case WorkoutBlockType.transition:

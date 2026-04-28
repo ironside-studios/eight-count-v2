@@ -88,6 +88,7 @@ class AudioService with WidgetsBindingObserver {
   static const Map<String, int> _priority = <String, int>{
     'wood_clack': 1,
     'whistle_long': 2,
+    'whistle_double': 2,
     'bell_start': 3,
     'bell_end': 4,
   };
@@ -97,6 +98,7 @@ class AudioService with WidgetsBindingObserver {
     'bell_end': 'assets/audio/bell_end.mp3',
     'wood_clack': 'assets/audio/wood_clack.mp3',
     'whistle_long': 'assets/audio/whistle_long.mp3',
+    'whistle_double': 'assets/audio/whistle_double.mp3',
   };
 
   // --- Owned state ---
