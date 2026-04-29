@@ -39,7 +39,7 @@ class HomeScreen extends StatelessWidget {
   //   'pro' / 'ai_video_pack' once vendor number lands. Kept as a
   //   non-const method so the analyzer doesn't dead-code the Pro
   //   branch in [_onCustomCardTap].
-  bool _isProUser() => true;
+  bool _isProUser() => false;
 
   @override
   Widget build(BuildContext context) {
