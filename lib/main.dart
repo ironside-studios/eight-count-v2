@@ -5,6 +5,7 @@ import 'core/router/app_router.dart';
 import 'core/services/audio_service.dart';
 import 'core/services/locale_service.dart';
 import 'core/theme/app_theme.dart';
+import 'features/custom/services/custom_preset_service.dart';
 import 'generated/l10n/app_localizations.dart';
 
 /// App-wide AudioService singleton. Lazy-initialised on first access and
@@ -22,6 +23,10 @@ Future<void> main() async {
   // Preload all four audio cue players before the UI goes live — cold-load
   // latency on the first play() would wreck cue accuracy during a workout.
   await audioService.init();
+
+  // Hydrate the Custom-preset slot cache from shared_preferences before the
+  // UI mounts so the home screen never sees an unloaded slot list.
+  await CustomPresetService.instance.init();
 
   runApp(EightCountApp(audioService: audioService));
 }

@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/custom/models/custom_config.dart';
+import '../../features/custom/screens/custom_builder_screen.dart';
+import '../../features/custom/screens/custom_preview_screen.dart';
 import '../../features/custom_preset/data/custom_preset_repository.dart';
 import '../../features/custom_preset/domain/custom_preset.dart';
-import '../../features/custom_preset/presentation/custom_preset_editor_screen.dart';
-import '../../features/custom_preset/presentation/custom_preset_list_screen.dart';
 import '../../features/home/presentation/home_screen.dart';
 import '../../features/timer/presentation/timer_screen.dart';
 import '../../features/timer/presentation/workout_complete_screen.dart';
@@ -46,18 +47,29 @@ final GoRouter appRouter = GoRouter(
         );
       },
     ),
+    // /custom and /custom/edit point at the 2026-04-30 Custom-preset
+    // rebuild (lib/features/custom/). The earlier custom_preset/
+    // implementation is orphaned but still referenced by
+    // /timer/custom/:presetId below — that legacy route migrates in
+    // Session B with the timer-engine integration.
     GoRoute(
       path: '/custom',
       builder: (BuildContext context, GoRouterState state) =>
-          const CustomPresetListScreen(),
+          const CustomPreviewScreen(),
     ),
     GoRoute(
       path: '/custom/edit',
       builder: (BuildContext context, GoRouterState state) {
-        final existing = state.extra;
-        return CustomPresetEditorScreen(
-          existing: existing is CustomPreset ? existing : null,
-        );
+        final extra = state.extra;
+        if (extra is! CustomConfig) {
+          // Defensive: caller must pass a CustomConfig in `extra`.
+          // Bounce home rather than render a broken screen.
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (context.mounted) context.go('/');
+          });
+          return const _TimerLoadingScaffold();
+        }
+        return CustomBuilderScreen(initialConfig: extra);
       },
     ),
     // Step 5.2: Custom-preset timer launch. Async-loads the preset from

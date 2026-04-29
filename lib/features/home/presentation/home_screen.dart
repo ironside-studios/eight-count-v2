@@ -9,6 +9,7 @@ import '../../../generated/l10n/app_localizations.dart';
 import '../../settings/presentation/settings_screen.dart';
 import '../../ads/services/ad_visibility_service.dart';
 import '../../ads/widgets/banner_ad_placeholder.dart';
+import '../../custom/widgets/custom_upsell_modal.dart';
 import '../widgets/matrix_rain_background.dart';
 import 'widgets/preset_card.dart';
 
@@ -21,6 +22,24 @@ class HomeScreen extends StatelessWidget {
       MaterialPageRoute<void>(builder: (_) => const SettingsScreen()),
     );
   }
+
+  /// Custom card tap: free users see the upsell modal, Pro users route
+  /// to the Custom preview screen. Pro is currently a stub that always
+  /// returns false; replace with RevenueCat entitlement check once the
+  /// vendor number is in.
+  void _onCustomCardTap(BuildContext context) {
+    if (_isProUser()) {
+      context.push('/custom');
+    } else {
+      CustomUpsellModal.show(context);
+    }
+  }
+
+  // TODO(revenuecat): replace with RevenueCat entitlement check for
+  //   'pro' / 'ai_video_pack' once vendor number lands. Kept as a
+  //   non-const method so the analyzer doesn't dead-code the Pro
+  //   branch in [_onCustomCardTap].
+  bool _isProUser() => false;
 
   @override
   Widget build(BuildContext context) {
@@ -81,13 +100,7 @@ class HomeScreen extends StatelessWidget {
                       title: l10n.customTitle,
                       subtitle: l10n.customMeta,
                       isLocked: true,
-                      onTap: () {
-                        // TODO(pro-gate): mirror Smoker's Pro gate once it
-                        // exists. Until then, route unconditionally — Step
-                        // 5 spec's documented fallback. PresetCard's own
-                        // GestureDetector already fires mediumImpact.
-                        context.push('/custom');
-                      },
+                      onTap: () => _onCustomCardTap(context),
                     ),
                   ],
                 ),
