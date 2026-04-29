@@ -439,6 +439,180 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'TRANSITION → BLOCK {nextIndex}'**
   String smokerTransitionLabel(Object nextIndex);
+
+  /// AppBar title on the Custom slots preview screen
+  ///
+  /// In en, this message translates to:
+  /// **'Custom Workouts'**
+  String get customPreviewTitle;
+
+  /// Empty slot card placeholder; slotNumber is 1-indexed
+  ///
+  /// In en, this message translates to:
+  /// **'Slot {slotNumber} — Tap to build'**
+  String customSlotEmpty(int slotNumber);
+
+  /// Saved slot's summary line; work and rest are pre-formatted M:SS strings
+  ///
+  /// In en, this message translates to:
+  /// **'{rounds, plural, =1{1 round} other{{rounds} rounds}} · {work} work · {rest} rest'**
+  String customSlotSubtitle(int rounds, String work, String rest);
+
+  /// Saved slot's total-duration line; duration is pre-formatted M:SS
+  ///
+  /// In en, this message translates to:
+  /// **'Total: {duration}'**
+  String customSlotTotalLabel(String duration);
+
+  /// Builder screen title when editing an existing slot
+  ///
+  /// In en, this message translates to:
+  /// **'EDIT WORKOUT'**
+  String get customBuilderEditTitle;
+
+  /// Builder screen title when creating a slot
+  ///
+  /// In en, this message translates to:
+  /// **'NEW WORKOUT'**
+  String get customBuilderNewTitle;
+
+  /// Section label above the name TextField
+  ///
+  /// In en, this message translates to:
+  /// **'WORKOUT NAME'**
+  String get customBuilderNameLabel;
+
+  /// Section label above the rounds stepper
+  ///
+  /// In en, this message translates to:
+  /// **'ROUNDS'**
+  String get customBuilderRoundsLabel;
+
+  /// Section label above the work-duration stepper + slider
+  ///
+  /// In en, this message translates to:
+  /// **'WORK'**
+  String get customBuilderWorkLabel;
+
+  /// Section label above the rest-duration stepper + slider
+  ///
+  /// In en, this message translates to:
+  /// **'REST'**
+  String get customBuilderRestLabel;
+
+  /// Section label inside the live total preview card
+  ///
+  /// In en, this message translates to:
+  /// **'TOTAL WORKOUT'**
+  String get customBuilderTotalLabel;
+
+  /// Footnote under the total time clarifying preCountdown is not included
+  ///
+  /// In en, this message translates to:
+  /// **'Excludes 45s get-ready'**
+  String get customBuilderTotalSubtitle;
+
+  /// Primary save CTA on the builder screen
+  ///
+  /// In en, this message translates to:
+  /// **'SAVE WORKOUT'**
+  String get customBuilderSaveButton;
+
+  /// Tertiary delete action on the builder screen, only shown when editing a saved slot
+  ///
+  /// In en, this message translates to:
+  /// **'Delete this slot'**
+  String get customBuilderDeleteButton;
+
+  /// Confirmation dialog title for slot deletion
+  ///
+  /// In en, this message translates to:
+  /// **'Delete \'{name}\'?'**
+  String customBuilderDeleteDialogTitle(String name);
+
+  /// Confirmation dialog body for slot deletion
+  ///
+  /// In en, this message translates to:
+  /// **'This cannot be undone.'**
+  String get customBuilderDeleteDialogBody;
+
+  /// Inline validation error: name field empty
+  ///
+  /// In en, this message translates to:
+  /// **'Name is required'**
+  String get customBuilderValidationNameRequired;
+
+  /// Inline validation error: name contains disallowed chars
+  ///
+  /// In en, this message translates to:
+  /// **'Use letters, numbers, and spaces only'**
+  String get customBuilderValidationNameInvalid;
+
+  /// Inline validation error: name exceeds 30 chars
+  ///
+  /// In en, this message translates to:
+  /// **'Name must be 30 characters or fewer'**
+  String get customBuilderValidationNameTooLong;
+
+  /// Validation error: rounds out of bounds
+  ///
+  /// In en, this message translates to:
+  /// **'Rounds must be between 1 and 30'**
+  String get customBuilderValidationRoundsRange;
+
+  /// Validation error: workSeconds out of bounds
+  ///
+  /// In en, this message translates to:
+  /// **'Work must be between 10 and 600 seconds'**
+  String get customBuilderValidationWorkRange;
+
+  /// Validation error: restSeconds out of bounds
+  ///
+  /// In en, this message translates to:
+  /// **'Rest must be between 5 and 300 seconds'**
+  String get customBuilderValidationRestRange;
+
+  /// Upsell modal title shown when free user taps the Custom card
+  ///
+  /// In en, this message translates to:
+  /// **'UNLOCK CUSTOM WORKOUTS'**
+  String get customUpsellTitle;
+
+  /// Upsell modal subtitle pitching the Pro tier
+  ///
+  /// In en, this message translates to:
+  /// **'Build your own boxing workouts. 3 saved slots, full control.'**
+  String get customUpsellSubtitle;
+
+  /// First feature bullet in the upsell
+  ///
+  /// In en, this message translates to:
+  /// **'Custom rounds, work, and rest'**
+  String get customUpsellFeature1;
+
+  /// Second feature bullet in the upsell
+  ///
+  /// In en, this message translates to:
+  /// **'3 named saved slots'**
+  String get customUpsellFeature2;
+
+  /// Third feature bullet in the upsell
+  ///
+  /// In en, this message translates to:
+  /// **'No ads'**
+  String get customUpsellFeature3;
+
+  /// Primary CTA button in the upsell modal
+  ///
+  /// In en, this message translates to:
+  /// **'Unlock Pro — {price}'**
+  String customUpsellCta(String price);
+
+  /// Dismiss button in the upsell modal
+  ///
+  /// In en, this message translates to:
+  /// **'Maybe later'**
+  String get customUpsellDismiss;
 }
 
 class _AppLocalizationsDelegate

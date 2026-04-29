@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../../generated/l10n/app_localizations.dart';
+
 /// Bottom-sheet upsell shown to free-tier users when they tap the
 /// Custom card on the home screen. Renders the Pro pitch + a primary
 /// "Unlock Pro — $4.99" button (currently a no-op until RevenueCat
@@ -27,6 +29,7 @@ class CustomUpsellModal extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Container(
       decoration: const BoxDecoration(
         color: _bg,
@@ -56,7 +59,7 @@ class CustomUpsellModal extends StatelessWidget {
               ),
               const SizedBox(height: 20),
               Text(
-                'Unlock Custom Workouts',
+                l10n.customUpsellTitle,
                 textAlign: TextAlign.center,
                 style: GoogleFonts.bebasNeue(
                   fontSize: 22,
@@ -66,7 +69,7 @@ class CustomUpsellModal extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               Text(
-                'Build your own boxing workouts. 3 saved slots, full control.',
+                l10n.customUpsellSubtitle,
                 textAlign: TextAlign.center,
                 style: GoogleFonts.inter(
                   fontSize: 14,
@@ -74,9 +77,9 @@ class CustomUpsellModal extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 24),
-              const _FeatureRow(text: 'Custom rounds, work, and rest'),
-              const _FeatureRow(text: '3 named saved slots'),
-              const _FeatureRow(text: 'No ads'),
+              _FeatureRow(text: l10n.customUpsellFeature1),
+              _FeatureRow(text: l10n.customUpsellFeature2),
+              _FeatureRow(text: l10n.customUpsellFeature3),
               const SizedBox(height: 32),
               // TODO(revenuecat): wire to RevenueCat purchase flow
               //   when vendor number is in. For now this just dismisses.
@@ -95,7 +98,7 @@ class CustomUpsellModal extends StatelessWidget {
                     ),
                   ),
                   child: Text(
-                    'Unlock Pro — \$4.99',
+                    l10n.customUpsellCta('\$4.99'),
                     style: GoogleFonts.bebasNeue(
                       fontSize: 16,
                       letterSpacing: 1.5,
@@ -110,7 +113,7 @@ class CustomUpsellModal extends StatelessWidget {
                   Navigator.of(context).pop();
                 },
                 child: Text(
-                  'Maybe later',
+                  l10n.customUpsellDismiss,
                   style: GoogleFonts.inter(
                     fontSize: 13,
                     color: _muted,

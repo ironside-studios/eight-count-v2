@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../../generated/l10n/app_localizations.dart';
 import '../models/custom_config.dart';
 import '../services/custom_preset_service.dart';
 import '../widgets/custom_slot_card.dart';
@@ -26,7 +27,7 @@ class _CustomPreviewScreenState extends State<CustomPreviewScreen> {
         elevation: 0,
         iconTheme: const IconThemeData(color: Color(0xFFD4A017)),
         title: Text(
-          'Custom Workouts',
+          AppLocalizations.of(context)!.customPreviewTitle,
           style: GoogleFonts.bebasNeue(
             fontSize: 22,
             color: const Color(0xFFD4A017),

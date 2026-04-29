@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../../generated/l10n/app_localizations.dart';
 import '../models/custom_config.dart';
 import '../services/custom_preset_service.dart';
 
@@ -42,8 +45,22 @@ class _CustomBuilderScreenState extends State<CustomBuilderScreen> {
     return '$m:${s.toString().padLeft(2, '0')}';
   }
 
+  // --- Validators wired to localized strings ---
+
+  String? _validateName(String name, AppLocalizations l10n) {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) return l10n.customBuilderValidationNameRequired;
+    if (trimmed.length > 30) return l10n.customBuilderValidationNameTooLong;
+    if (!RegExp(r'^[a-zA-Z0-9\sÀ-ſ]+$').hasMatch(trimmed)) {
+      return l10n.customBuilderValidationNameInvalid;
+    }
+    return null;
+  }
+
   bool get _isValid {
-    return CustomConfig.validateName(_draft.name) == null &&
+    return _validateName(_draft.name,
+                AppLocalizations.of(context)!) ==
+            null &&
         CustomConfig.validateRounds(_draft.rounds) == null &&
         CustomConfig.validateWorkSeconds(_draft.workSeconds) == null &&
         CustomConfig.validateRestSeconds(_draft.restSeconds) == null;
@@ -51,7 +68,8 @@ class _CustomBuilderScreenState extends State<CustomBuilderScreen> {
 
   Future<void> _save() async {
     HapticFeedback.mediumImpact();
-    final err = CustomConfig.validateName(_draft.name);
+    final l10n = AppLocalizations.of(context)!;
+    final err = _validateName(_draft.name, l10n);
     if (err != null) {
       setState(() => _nameError = err);
       return;
@@ -70,30 +88,31 @@ class _CustomBuilderScreenState extends State<CustomBuilderScreen> {
 
   Future<void> _delete() async {
     HapticFeedback.mediumImpact();
+    final l10n = AppLocalizations.of(context)!;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: _bg,
         title: Text(
-          "Delete '${_draft.name}'?",
+          l10n.customBuilderDeleteDialogTitle(_draft.name),
           style: GoogleFonts.inter(color: Colors.white),
         ),
         content: Text(
-          'This cannot be undone.',
+          l10n.customBuilderDeleteDialogBody,
           style: GoogleFonts.inter(color: _muted),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
             child: Text(
-              'Cancel',
+              l10n.cancel,
               style: GoogleFonts.inter(color: _muted),
             ),
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
             child: Text(
-              'Delete',
+              l10n.delete,
               style: GoogleFonts.inter(color: const Color(0xFFE53935)),
             ),
           ),
@@ -108,7 +127,10 @@ class _CustomBuilderScreenState extends State<CustomBuilderScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final title = widget.initialConfig.isSaved ? 'Edit Workout' : 'New Workout';
+    final l10n = AppLocalizations.of(context)!;
+    final title = widget.initialConfig.isSaved
+        ? l10n.customBuilderEditTitle
+        : l10n.customBuilderNewTitle;
     return Scaffold(
       backgroundColor: _bg,
       appBar: AppBar(
@@ -131,34 +153,36 @@ class _CustomBuilderScreenState extends State<CustomBuilderScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _nameField(),
+              _nameField(l10n),
               const SizedBox(height: 24),
-              _roundsStepper(),
+              _roundsSection(l10n),
               const SizedBox(height: 24),
-              _durationSlider(
-                label: 'WORK',
+              _durationSection(
+                label: l10n.customBuilderWorkLabel,
                 seconds: _draft.workSeconds,
                 min: 10,
                 max: 600,
+                step: 5,
                 onChanged: (v) =>
                     setState(() => _draft = _draft.copyWith(workSeconds: v)),
               ),
               const SizedBox(height: 24),
-              _durationSlider(
-                label: 'REST',
+              _durationSection(
+                label: l10n.customBuilderRestLabel,
                 seconds: _draft.restSeconds,
                 min: 5,
                 max: 300,
+                step: 5,
                 onChanged: (v) =>
                     setState(() => _draft = _draft.copyWith(restSeconds: v)),
               ),
               const SizedBox(height: 24),
-              _totalPreview(),
+              _totalPreview(l10n),
               const SizedBox(height: 24),
-              _saveButton(),
+              _saveButton(l10n),
               if (widget.initialConfig.isSaved) ...[
                 const SizedBox(height: 12),
-                _deleteButton(),
+                _deleteButton(l10n),
               ],
             ],
           ),
@@ -177,11 +201,11 @@ class _CustomBuilderScreenState extends State<CustomBuilderScreen> {
         ),
       );
 
-  Widget _nameField() {
+  Widget _nameField(AppLocalizations l10n) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _sectionLabel('WORKOUT NAME'),
+        _sectionLabel(l10n.customBuilderNameLabel),
         const SizedBox(height: 8),
         TextField(
           controller: _nameController,
@@ -209,85 +233,80 @@ class _CustomBuilderScreenState extends State<CustomBuilderScreen> {
     );
   }
 
-  Widget _roundsStepper() {
-    final atMin = _draft.rounds <= 1;
-    final atMax = _draft.rounds >= 30;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+  /// Stepper-flanked numeric value for ROUNDS, WORK, REST. Tap = single
+  /// step, hold = repeat at 100ms intervals until release. Buttons
+  /// disable at bounds.
+  Widget _stepperRow({
+    required int value,
+    required int min,
+    required int max,
+    required int step,
+    required String formatted,
+    required ValueChanged<int> onChanged,
+    required double valueFontSize,
+  }) {
+    final atMin = value <= min;
+    final atMax = value >= max;
+    return Row(
       children: [
-        _sectionLabel('ROUNDS'),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            _stepperButton(
-              icon: Icons.remove,
-              enabled: !atMin,
-              onTap: () => setState(
-                () => _draft = _draft.copyWith(
-                    rounds: (_draft.rounds - 1).clamp(1, 30)),
+        _StepperButton(
+          icon: Icons.remove,
+          enabled: !atMin,
+          onStep: () {
+            final next = (value - step).clamp(min, max);
+            if (next != value) onChanged(next);
+          },
+        ),
+        Expanded(
+          child: Center(
+            child: Text(
+              formatted,
+              style: GoogleFonts.bebasNeue(
+                fontSize: valueFontSize,
+                color: _gold,
+                letterSpacing: 2,
               ),
             ),
-            Expanded(
-              child: Center(
-                child: Text(
-                  '${_draft.rounds}',
-                  style: GoogleFonts.bebasNeue(
-                    fontSize: 32,
-                    color: _gold,
-                    letterSpacing: 2,
-                  ),
-                ),
-              ),
-            ),
-            _stepperButton(
-              icon: Icons.add,
-              enabled: !atMax,
-              onTap: () => setState(
-                () => _draft = _draft.copyWith(
-                    rounds: (_draft.rounds + 1).clamp(1, 30)),
-              ),
-            ),
-          ],
+          ),
+        ),
+        _StepperButton(
+          icon: Icons.add,
+          enabled: !atMax,
+          onStep: () {
+            final next = (value + step).clamp(min, max);
+            if (next != value) onChanged(next);
+          },
         ),
       ],
     );
   }
 
-  Widget _stepperButton({
-    required IconData icon,
-    required bool enabled,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: enabled
-          ? () {
-              HapticFeedback.lightImpact();
-              onTap();
-            }
-          : null,
-      child: Container(
-        width: 56,
-        height: 56,
-        decoration: BoxDecoration(
-          border: Border.all(
-            color: enabled ? _gold : _muted.withValues(alpha: 0.3),
-          ),
-          borderRadius: BorderRadius.circular(12),
+  Widget _roundsSection(AppLocalizations l10n) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _sectionLabel(l10n.customBuilderRoundsLabel),
+        const SizedBox(height: 8),
+        _stepperRow(
+          value: _draft.rounds,
+          min: 1,
+          max: 30,
+          step: 1,
+          formatted: '${_draft.rounds}',
+          valueFontSize: 32,
+          onChanged: (v) =>
+              setState(() => _draft = _draft.copyWith(rounds: v)),
         ),
-        child: Icon(
-          icon,
-          color: enabled ? _gold : _muted.withValues(alpha: 0.3),
-          size: 24,
-        ),
-      ),
+      ],
     );
   }
 
-  Widget _durationSlider({
+  Widget _durationSection({
     required String label,
     required int seconds,
     required int min,
     required int max,
+    required int step,
     required ValueChanged<int> onChanged,
   }) {
     return Column(
@@ -295,16 +314,16 @@ class _CustomBuilderScreenState extends State<CustomBuilderScreen> {
       children: [
         _sectionLabel(label),
         const SizedBox(height: 8),
-        Center(
-          child: Text(
-            _formatDuration(seconds),
-            style: GoogleFonts.bebasNeue(
-              fontSize: 24,
-              color: _gold,
-              letterSpacing: 1.5,
-            ),
-          ),
+        _stepperRow(
+          value: seconds,
+          min: min,
+          max: max,
+          step: step,
+          formatted: _formatDuration(seconds),
+          valueFontSize: 28,
+          onChanged: onChanged,
         ),
+        const SizedBox(height: 4),
         SliderTheme(
           data: SliderThemeData(
             activeTrackColor: _gold,
@@ -316,11 +335,10 @@ class _CustomBuilderScreenState extends State<CustomBuilderScreen> {
             value: seconds.toDouble(),
             min: min.toDouble(),
             max: max.toDouble(),
-            divisions: ((max - min) ~/ 5),
+            divisions: ((max - min) ~/ step),
             onChanged: (v) {
               HapticFeedback.selectionClick();
-              // Snap to 5-second increments.
-              final snapped = ((v / 5).round() * 5).clamp(min, max);
+              final snapped = ((v / step).round() * step).clamp(min, max);
               onChanged(snapped);
             },
           ),
@@ -329,7 +347,7 @@ class _CustomBuilderScreenState extends State<CustomBuilderScreen> {
     );
   }
 
-  Widget _totalPreview() {
+  Widget _totalPreview(AppLocalizations l10n) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       decoration: BoxDecoration(
@@ -339,7 +357,7 @@ class _CustomBuilderScreenState extends State<CustomBuilderScreen> {
       ),
       child: Column(
         children: [
-          _sectionLabel('TOTAL WORKOUT'),
+          _sectionLabel(l10n.customBuilderTotalLabel),
           const SizedBox(height: 8),
           Text(
             _formatDuration(_draft.totalWorkoutSeconds),
@@ -351,7 +369,7 @@ class _CustomBuilderScreenState extends State<CustomBuilderScreen> {
           ),
           const SizedBox(height: 4),
           Text(
-            'Excludes 45s get-ready',
+            l10n.customBuilderTotalSubtitle,
             style: GoogleFonts.inter(fontSize: 11, color: _muted),
           ),
         ],
@@ -359,7 +377,7 @@ class _CustomBuilderScreenState extends State<CustomBuilderScreen> {
     );
   }
 
-  Widget _saveButton() {
+  Widget _saveButton(AppLocalizations l10n) {
     final enabled = _isValid;
     return Opacity(
       opacity: enabled ? 1.0 : 0.5,
@@ -377,7 +395,7 @@ class _CustomBuilderScreenState extends State<CustomBuilderScreen> {
             ),
           ),
           child: Text(
-            'Save Workout',
+            l10n.customBuilderSaveButton,
             style: GoogleFonts.bebasNeue(
               fontSize: 16,
               letterSpacing: 1.5,
@@ -388,15 +406,95 @@ class _CustomBuilderScreenState extends State<CustomBuilderScreen> {
     );
   }
 
-  Widget _deleteButton() {
+  Widget _deleteButton(AppLocalizations l10n) {
     return TextButton(
       onPressed: _delete,
       child: Text(
-        'Delete this slot',
+        l10n.customBuilderDeleteButton,
         style: GoogleFonts.inter(
           fontSize: 13,
           color: const Color(0xFFE53935),
         ),
+      ),
+    );
+  }
+}
+
+/// Reusable +/- button used by ROUNDS, WORK, and REST sections. Tap
+/// fires `onStep` once with a light-impact haptic. Long-press (hold)
+/// fires `onStep` every 100ms with a haptic per repeat until released.
+/// Disabled state is greyed and ignores all gestures.
+class _StepperButton extends StatefulWidget {
+  const _StepperButton({
+    required this.icon,
+    required this.enabled,
+    required this.onStep,
+  });
+
+  final IconData icon;
+  final bool enabled;
+  final VoidCallback onStep;
+
+  @override
+  State<_StepperButton> createState() => _StepperButtonState();
+}
+
+class _StepperButtonState extends State<_StepperButton> {
+  Timer? _holdTimer;
+
+  @override
+  void dispose() {
+    _holdTimer?.cancel();
+    super.dispose();
+  }
+
+  void _step() {
+    if (!widget.enabled) return;
+    HapticFeedback.lightImpact();
+    widget.onStep();
+  }
+
+  void _onLongPressStart(_) {
+    if (!widget.enabled) return;
+    _holdTimer?.cancel();
+    _holdTimer = Timer.periodic(
+      const Duration(milliseconds: 100),
+      (_) {
+        // Stop the timer if the bound was reached during repeats so
+        // the button doesn't keep emitting haptics with no movement.
+        if (!widget.enabled) {
+          _holdTimer?.cancel();
+          _holdTimer = null;
+          return;
+        }
+        _step();
+      },
+    );
+  }
+
+  void _onLongPressEnd(_) {
+    _holdTimer?.cancel();
+    _holdTimer = null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = widget.enabled
+        ? const Color(0xFFD4A017)
+        : const Color(0xFF8A8A8A).withValues(alpha: 0.3);
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: widget.enabled ? _step : null,
+      onLongPressStart: widget.enabled ? _onLongPressStart : null,
+      onLongPressEnd: widget.enabled ? _onLongPressEnd : null,
+      child: Container(
+        width: 56,
+        height: 56,
+        decoration: BoxDecoration(
+          border: Border.all(color: color),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Icon(widget.icon, color: color, size: 24),
       ),
     );
   }

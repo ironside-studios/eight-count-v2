@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../../generated/l10n/app_localizations.dart';
 import '../models/custom_config.dart';
 
 /// Single-slot card on the Custom preview screen. Two visual states:
@@ -28,6 +29,7 @@ class CustomSlotCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final isSaved = config.isSaved;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -58,12 +60,12 @@ class CustomSlotCard extends StatelessWidget {
             width: 1,
           ),
         ),
-        child: isSaved ? _buildSaved() : _buildEmpty(),
+        child: isSaved ? _buildSaved(l10n) : _buildEmpty(l10n),
       ),
     );
   }
 
-  Widget _buildSaved() {
+  Widget _buildSaved(AppLocalizations l10n) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -83,8 +85,11 @@ class CustomSlotCard extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                '${config.rounds} rounds · ${_formatDuration(config.workSeconds)} '
-                'work · ${_formatDuration(config.restSeconds)} rest',
+                l10n.customSlotSubtitle(
+                  config.rounds,
+                  _formatDuration(config.workSeconds),
+                  _formatDuration(config.restSeconds),
+                ),
                 style: GoogleFonts.inter(
                   fontSize: 13,
                   color: const Color(0xFF8A8A8A),
@@ -92,7 +97,9 @@ class CustomSlotCard extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                'Total: ${_formatDuration(config.totalWorkoutSeconds)}',
+                l10n.customSlotTotalLabel(
+                  _formatDuration(config.totalWorkoutSeconds),
+                ),
                 style: GoogleFonts.inter(
                   fontSize: 11,
                   color: const Color(0xFFD4A017),
@@ -118,7 +125,7 @@ class CustomSlotCard extends StatelessWidget {
     );
   }
 
-  Widget _buildEmpty() {
+  Widget _buildEmpty(AppLocalizations l10n) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -129,7 +136,7 @@ class CustomSlotCard extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         Text(
-          'Slot ${config.slotIndex + 1} — Tap to build',
+          l10n.customSlotEmpty(config.slotIndex + 1),
           style: GoogleFonts.inter(
             fontSize: 14,
             color: const Color(0xFF8A8A8A),

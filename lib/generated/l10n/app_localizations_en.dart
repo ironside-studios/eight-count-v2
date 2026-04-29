@@ -185,4 +185,113 @@ class AppLocalizationsEn extends AppLocalizations {
   String smokerTransitionLabel(Object nextIndex) {
     return 'TRANSITION → BLOCK $nextIndex';
   }
+
+  @override
+  String get customPreviewTitle => 'Custom Workouts';
+
+  @override
+  String customSlotEmpty(int slotNumber) {
+    return 'Slot $slotNumber — Tap to build';
+  }
+
+  @override
+  String customSlotSubtitle(int rounds, String work, String rest) {
+    String _temp0 = intl.Intl.pluralLogic(
+      rounds,
+      locale: localeName,
+      other: '$rounds rounds',
+      one: '1 round',
+    );
+    return '$_temp0 · $work work · $rest rest';
+  }
+
+  @override
+  String customSlotTotalLabel(String duration) {
+    return 'Total: $duration';
+  }
+
+  @override
+  String get customBuilderEditTitle => 'EDIT WORKOUT';
+
+  @override
+  String get customBuilderNewTitle => 'NEW WORKOUT';
+
+  @override
+  String get customBuilderNameLabel => 'WORKOUT NAME';
+
+  @override
+  String get customBuilderRoundsLabel => 'ROUNDS';
+
+  @override
+  String get customBuilderWorkLabel => 'WORK';
+
+  @override
+  String get customBuilderRestLabel => 'REST';
+
+  @override
+  String get customBuilderTotalLabel => 'TOTAL WORKOUT';
+
+  @override
+  String get customBuilderTotalSubtitle => 'Excludes 45s get-ready';
+
+  @override
+  String get customBuilderSaveButton => 'SAVE WORKOUT';
+
+  @override
+  String get customBuilderDeleteButton => 'Delete this slot';
+
+  @override
+  String customBuilderDeleteDialogTitle(String name) {
+    return 'Delete \'$name\'?';
+  }
+
+  @override
+  String get customBuilderDeleteDialogBody => 'This cannot be undone.';
+
+  @override
+  String get customBuilderValidationNameRequired => 'Name is required';
+
+  @override
+  String get customBuilderValidationNameInvalid =>
+      'Use letters, numbers, and spaces only';
+
+  @override
+  String get customBuilderValidationNameTooLong =>
+      'Name must be 30 characters or fewer';
+
+  @override
+  String get customBuilderValidationRoundsRange =>
+      'Rounds must be between 1 and 30';
+
+  @override
+  String get customBuilderValidationWorkRange =>
+      'Work must be between 10 and 600 seconds';
+
+  @override
+  String get customBuilderValidationRestRange =>
+      'Rest must be between 5 and 300 seconds';
+
+  @override
+  String get customUpsellTitle => 'UNLOCK CUSTOM WORKOUTS';
+
+  @override
+  String get customUpsellSubtitle =>
+      'Build your own boxing workouts. 3 saved slots, full control.';
+
+  @override
+  String get customUpsellFeature1 => 'Custom rounds, work, and rest';
+
+  @override
+  String get customUpsellFeature2 => '3 named saved slots';
+
+  @override
+  String get customUpsellFeature3 => 'No ads';
+
+  @override
+  String customUpsellCta(String price) {
+    return 'Unlock Pro — $price';
+  }
+
+  @override
+  String get customUpsellDismiss => 'Maybe later';
 }

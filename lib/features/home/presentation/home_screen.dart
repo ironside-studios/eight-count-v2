@@ -105,7 +105,14 @@ class HomeScreen extends StatelessWidget {
                   ],
                 ),
               ),
-                  const SizedBox(height: AppSpacing.lg),
+                  // Trimmed 24→12 (AppSpacing.lg → md) on 2026-04-30:
+                  // banner placeholder added 50dp below the Stack;
+                  // the 3-card Expanded column was overflowing the
+                  // available height by ~7px on the Custom (third)
+                  // card. 12px clears the overflow with comfortable
+                  // visual separation between the bottom card and
+                  // the banner.
+                  const SizedBox(height: AppSpacing.md),
                 ],
               ),
             ),
