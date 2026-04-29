@@ -9,9 +9,10 @@ import 'matrix_rain_painter.dart';
 
 /// Falling-character home-screen background. 30-50 streams of "8COUNT"
 /// chars cascade down the screen with a Matrix-style 3D light-source
-/// effect (bright gold heads, fading amber trails). A static "8COUNT"
-/// bleed-through layer sits at upper-third opacity 12%; characters
-/// brighten when they cross over it.
+/// effect (bright gold heads, fading amber trails). The rain itself
+/// carries the brand via the 8/C/O/U/N/T characters — the previous
+/// static "8COUNT" bleed-through layer was removed 2026-04-30 because
+/// it collided with the app title at top.
 ///
 /// Lifecycle:
 ///   - Pauses ticker when navigating away (RouteAware push/pop chains).
@@ -26,7 +27,6 @@ class MatrixRainBackground extends StatefulWidget {
     super.key,
     this.streamCount = 40,
     this.speedMultiplier = 1.0,
-    this.showBleedThrough = true,
   });
 
   /// Number of concurrent falling streams. Locked range 30-50 in
@@ -36,10 +36,6 @@ class MatrixRainBackground extends StatefulWidget {
   /// Multiplier on the per-stream falling speed. 1.0 = canonical;
   /// debug slider exposes 0.5-2.0.
   final double speedMultiplier;
-
-  /// When false, suppresses the static "8COUNT" bleed-through layer
-  /// (and its per-character brightening). Debug-toggle only.
-  final bool showBleedThrough;
 
   @override
   State<MatrixRainBackground> createState() => _MatrixRainBackgroundState();
@@ -61,12 +57,10 @@ class _MatrixRainBackgroundState extends State<MatrixRainBackground>
 
   // --- Layout-derived state ---
   Size? _lastSize;
-  ({TextPainter painter, Rect rect})? _bleedThrough;
 
   // --- Debug overlay state (kDebugMode only) ---
   late int _debugStreamCount;
   late double _debugSpeedMul;
-  late bool _debugShowBleed;
   bool _debugOverlayCollapsed = false;
 
   // --- Route subscription bookkeeping ---
@@ -79,7 +73,6 @@ class _MatrixRainBackgroundState extends State<MatrixRainBackground>
     super.initState();
     _debugStreamCount = widget.streamCount;
     _debugSpeedMul = widget.speedMultiplier;
-    _debugShowBleed = widget.showBleedThrough;
 
     WidgetsBinding.instance.addObserver(this);
     _ticker = createTicker(_onTick);
@@ -239,13 +232,10 @@ class _MatrixRainBackgroundState extends State<MatrixRainBackground>
       builder: (context, constraints) {
         final size = Size(constraints.maxWidth, constraints.maxHeight);
 
-        // Recompute bleed-through layer + populate pool on size changes.
+        // Populate pool on size changes (or stream-count slider change
+        // in debug builds).
         if (_lastSize == null || _lastSize != size) {
           _lastSize = size;
-          _bleedThrough = buildBleedThrough(
-            screenWidth: size.width,
-            screenHeight: size.height,
-          );
           _syncPoolToCount(
             kDebugMode ? _debugStreamCount : widget.streamCount,
             size,
@@ -263,9 +253,6 @@ class _MatrixRainBackgroundState extends State<MatrixRainBackground>
               painter: MatrixRainPainter(
                 repaint: _frameCounter,
                 streams: _streams,
-                bleedThroughText: _bleedThrough,
-                bleedThroughEnabled:
-                    kDebugMode ? _debugShowBleed : widget.showBleedThrough,
               ),
             ),
             if (kDebugMode)
@@ -278,11 +265,9 @@ class _MatrixRainBackgroundState extends State<MatrixRainBackground>
                       () => _debugOverlayCollapsed = !_debugOverlayCollapsed),
                   streamCount: _debugStreamCount,
                   speedMul: _debugSpeedMul,
-                  showBleed: _debugShowBleed,
                   onStreamCount: (v) =>
                       setState(() => _debugStreamCount = v),
                   onSpeedMul: (v) => setState(() => _debugSpeedMul = v),
-                  onShowBleed: (v) => setState(() => _debugShowBleed = v),
                 ),
               ),
           ],
@@ -300,20 +285,16 @@ class _DebugTuningOverlay extends StatelessWidget {
     required this.onToggleCollapsed,
     required this.streamCount,
     required this.speedMul,
-    required this.showBleed,
     required this.onStreamCount,
     required this.onSpeedMul,
-    required this.onShowBleed,
   });
 
   final bool collapsed;
   final VoidCallback onToggleCollapsed;
   final int streamCount;
   final double speedMul;
-  final bool showBleed;
   final ValueChanged<int> onStreamCount;
   final ValueChanged<double> onSpeedMul;
-  final ValueChanged<bool> onShowBleed;
 
   @override
   Widget build(BuildContext context) {
@@ -375,16 +356,6 @@ class _DebugTuningOverlay extends StatelessWidget {
             max: 2.0,
             divisions: 30,
             onChanged: onSpeedMul,
-          ),
-          Row(
-            children: [
-              const Text(
-                'bleed-through',
-                style: TextStyle(color: Colors.white, fontSize: 10),
-              ),
-              const Spacer(),
-              Switch(value: showBleed, onChanged: onShowBleed),
-            ],
           ),
         ],
       ),

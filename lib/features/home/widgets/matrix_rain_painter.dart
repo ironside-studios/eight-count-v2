@@ -1,5 +1,4 @@
 import 'dart:math' as math;
-import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -41,22 +40,18 @@ class RainStream {
 /// `repaint` listenable on the host's `CustomPaint` — this painter never
 /// does its own state mutation. Stream state is owned by the host
 /// widget's State and passed in.
+///
+/// As of 2026-04-30, the static "8COUNT" bleed-through layer was
+/// removed (collided with the app title; rain itself carries the brand
+/// via the 8/C/O/U/N/T characters). Streams paint directly on the
+/// transparent background — the only paint pass.
 class MatrixRainPainter extends CustomPainter {
   MatrixRainPainter({
     required Listenable repaint,
     required this.streams,
-    required this.bleedThroughText,
-    required this.bleedThroughEnabled,
   }) : super(repaint: repaint);
 
   final List<RainStream> streams;
-
-  /// Pre-laid TextPainter for the static "8COUNT" bleed-through layer
-  /// plus its bounding rect (computed by the host widget on layout
-  /// changes, NOT every frame).
-  final ({TextPainter painter, Rect rect})? bleedThroughText;
-
-  final bool bleedThroughEnabled;
 
   /// Stream characters are drawn from this cycle. Each row down a stream
   /// picks the next character so the stream visually reads as "8COUNT"
@@ -78,15 +73,6 @@ class MatrixRainPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // 1) Bleed-through "8COUNT" first so streams overlay it.
-    if (bleedThroughEnabled && bleedThroughText != null) {
-      bleedThroughText!.painter.paint(
-        canvas,
-        bleedThroughText!.rect.topLeft,
-      );
-    }
-
-    // 2) Streams.
     final tp = TextPainter(
       textDirection: TextDirection.ltr,
     );
@@ -117,17 +103,6 @@ class MatrixRainPainter extends CustomPainter {
             color =
                 Color.lerp(_trailMid, _trailLo, (trailFraction - 0.5) * 2)!;
           }
-        }
-
-        // Bleed-through brightening: if the char center is over the
-        // bleed-through text rect, lerp toward white by 0.3.
-        final double charCenterY = charY + _lineHeight / 2;
-        final double charCenterX = s.xPx + _charFontSize / 2;
-        if (bleedThroughEnabled &&
-            bleedThroughText != null &&
-            bleedThroughText!.rect
-                .contains(Offset(charCenterX, charCenterY))) {
-          color = Color.lerp(color, const Color(0xFFFFFFFF), 0.3)!;
         }
 
         // For the head, draw a soft glow underneath then the crisp char.
@@ -169,9 +144,7 @@ class MatrixRainPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant MatrixRainPainter old) =>
-      old.streams != streams ||
-      old.bleedThroughText != bleedThroughText ||
-      old.bleedThroughEnabled != bleedThroughEnabled;
+      old.streams != streams;
 }
 
 /// Helper used by the host widget to spawn a stream with random
@@ -196,32 +169,4 @@ RainStream spawnStream({
     speedPxS: speed,
     length: length,
   );
-}
-
-/// Builds the static "8COUNT" bleed-through TextPainter and its bounding
-/// rect for the given screen size. Called once on layout, not per frame.
-({TextPainter painter, Rect rect}) buildBleedThrough({
-  required double screenWidth,
-  required double screenHeight,
-}) {
-  // Locked sizing per spec: screenWidth * 0.28 clamped 96-160.
-  final double fontSize = (screenWidth * 0.28).clamp(96.0, 160.0);
-  final tp = TextPainter(
-    text: TextSpan(
-      text: '8COUNT',
-      style: GoogleFonts.bebasNeue(
-        fontSize: fontSize,
-        color: const Color(0xFFD4A017).withValues(alpha: 0.12),
-        letterSpacing: 4,
-        fontWeight: ui.FontWeight.w700,
-      ),
-    ),
-    textDirection: TextDirection.ltr,
-    textAlign: TextAlign.center,
-  )..layout(maxWidth: screenWidth);
-  // Vertical position: ~25-30% from top.
-  final double y = screenHeight * 0.275 - tp.height / 2;
-  final double x = (screenWidth - tp.width) / 2;
-  final rect = Rect.fromLTWH(x, y, tp.width, tp.height);
-  return (painter: tp, rect: rect);
 }

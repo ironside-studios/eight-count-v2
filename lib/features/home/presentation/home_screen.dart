@@ -7,6 +7,8 @@ import '../../../core/constants/app_spacing.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../settings/presentation/settings_screen.dart';
+import '../../ads/services/ad_visibility_service.dart';
+import '../../ads/widgets/banner_ad_placeholder.dart';
 import '../widgets/matrix_rain_background.dart';
 import 'widgets/preset_card.dart';
 
@@ -25,12 +27,16 @@ class HomeScreen extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
     return Scaffold(
       backgroundColor: AppColors.black,
-      body: Stack(
+      body: Column(
+        mainAxisSize: MainAxisSize.max,
         children: [
+          Expanded(
+            child: Stack(
+              children: [
           // Bottom layer: matrix-rain ambient background. Falling
-          // "8COUNT" characters with a static bleed-through layer that
-          // characters brighten when crossing. Fully behind the cards;
-          // pauses on navigation away and on app backgrounding.
+          // "8COUNT" characters cascading; the static bleed-through
+          // layer was removed 2026-04-30 (collided with app title).
+          // Pauses on navigation away and on app backgrounding.
           const Positioned.fill(child: MatrixRainBackground()),
           // Foreground: existing home layout (header, brand, 3 cards),
           // unchanged.
@@ -91,6 +97,11 @@ class HomeScreen extends StatelessWidget {
               ),
             ),
           ),
+              ],
+            ),
+          ),
+          if (AdVisibilityService.instance.shouldShowBannerAd())
+            const BannerAdPlaceholder(),
         ],
       ),
     );
