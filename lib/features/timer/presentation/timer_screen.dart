@@ -212,22 +212,23 @@ class _TimerScreenState extends State<TimerScreen> {
     // this screen; AnimatedBuilder rebuilds handle the label / ring-color
     // / round-card swaps.
     // Wait for the engine to reach WorkoutPhase.complete naturally, then
-    // hold for 1 second on the ":00" screen before routing. This gives the
-    // user a deliberate visual closure for the final round:
-    //   0:02 → 0:01 → BELL FIRES → 0:00 (held for 1s) → /complete screen
+    // hold for 5 seconds on the ":00" screen with the red ring before
+    // routing. This gives the user a deliberate visual closure for the
+    // final round:
+    //   0:02 → 0:01 → BELL FIRES → 0:00 (held 5s, red ring) → /complete
     //
     // The bell started 1s before engine-complete (1s-early shift), so by
     // the time engine reaches complete the bell has been playing ~1s with
-    // ~1.6s of clip remaining. We hold 1 more second on ":00", then route
-    // — bell still has ~600ms of tail playing as the complete screen
-    // appears. _completedNaturally tells dispose() to skip stopAll() so
+    // ~1.6s of clip remaining. The bell finishes well within the 5s hold;
+    // the remaining ~3.4s is intentional silence holding the red ring on
+    // screen. _completedNaturally tells dispose() to skip stopAll() so
     // the bell finishes cleanly across the route change.
     if (!_popped && engine.state.phase == WorkoutPhase.complete) {
       _popped = true;
       _completedNaturally = true;
       final int totalSeconds = _totalWorkoutSeconds(engine.config);
       final String presetId = widget.presetId;
-      Future.delayed(const Duration(milliseconds: 1000), () {
+      Future.delayed(const Duration(milliseconds: 5000), () {
         if (!mounted) return;
         context.go(
           '/complete',
@@ -501,13 +502,21 @@ class _TimerScreenState extends State<TimerScreen> {
     }
   }
 
-  /// DEV-ONLY: fires only when [kDebugMode] so the SKIP button is tree-shaken
-  /// out of release builds. Calls the locked engine's [skipPhase] — same path
-  /// the engine's own unit tests exercise. Haptic is fired by the button
-  /// widget itself (light-impact variant), same pattern as PAUSE/STOP.
+  /// DEV-ONLY: tap on SKIP fast-forwards 10s. Long-press fast-forwards
+  /// 60s. Both route through the engine's [debugSkipForward] which
+  /// shifts time anchors (NOT mutable remaining-time state) and
+  /// suppresses cue dispatch during the multi-phase chain so skipping
+  /// across boundaries doesn't trigger a barrage of bells. Tree-shaken
+  /// from release builds via [kDebugMode]. Haptic is fired by the
+  /// button widget itself.
   void _handleSkip() {
     if (!kDebugMode) return;
-    _engine?.skipPhase();
+    _engine?.debugSkipForward(10);
+  }
+
+  void _handleSkipLong() {
+    if (!kDebugMode) return;
+    _engine?.debugSkipForward(60);
   }
 
   /// Maps the engine's phase to the user-facing label shown above the ring.
@@ -639,16 +648,44 @@ class _TimerScreenState extends State<TimerScreen> {
 
               final bool showTotalCard = engine != null &&
                   (phase == WorkoutPhase.work || phase == WorkoutPhase.rest);
+              // Bug 4 (2026-04-28): the underlying _remainingTotalSeconds
+              // math includes preCountdown in the total anchor, which made
+              // the displayed TOTAL read 0:46 when phase remaining read
+              // 0:01 at the end of the final work block — the 45s gap was
+              // the unspent preCountdown reservation. The dual-zero
+              // contract (TOTAL hits :00 the same instant final phase
+              // hits :00) is enforced HERE at the display layer by
+              // subtracting preCountdown.inSeconds from the rendered
+              // value during content phases. The underlying math (and
+              // its 20 unit tests in timer_screen_smoker_total_time_test)
+              // stay intact.
+              int rawTotalRemainingSec = 0;
+              if (engine != null) {
+                rawTotalRemainingSec = _remainingTotalSeconds(
+                  engine.config,
+                  phase,
+                  engine.state.currentRound,
+                  engine.state.phaseRemaining.inMilliseconds,
+                  currentBlockIndex: currentBlockIndex,
+                  blockType: blockType,
+                );
+              }
+              final int preCountdownSec = engine == null
+                  ? 0
+                  : (engine.config is SmokerConfig
+                      ? (engine.config as SmokerConfig)
+                          .preCountdown
+                          .inSeconds
+                      : (engine.config as WorkoutConfig)
+                          .preCountdown
+                          .inSeconds);
               final int totalRemainingSec = engine == null
                   ? 0
-                  : _remainingTotalSeconds(
-                      engine.config,
-                      phase,
-                      engine.state.currentRound,
-                      engine.state.phaseRemaining.inMilliseconds,
-                      currentBlockIndex: currentBlockIndex,
-                      blockType: blockType,
-                    );
+                  : (phase == WorkoutPhase.preCountdown ||
+                          phase == WorkoutPhase.complete)
+                      ? rawTotalRemainingSec
+                      : (rawTotalRemainingSec - preCountdownSec)
+                          .clamp(0, 9999);
 
               return Stack(
                 children: [
@@ -759,6 +796,7 @@ class _TimerScreenState extends State<TimerScreen> {
                                   isDebug: true,
                                   width: 100,
                                   onTap: _handleSkip,
+                                  onLongPress: _handleSkipLong,
                                 ),
                               ],
                             ],
@@ -805,6 +843,7 @@ class _TimerActionButton extends StatelessWidget {
     required this.isPrimary,
     this.width = 140,
     this.isDebug = false,
+    this.onLongPress,
   });
 
   final String label;
@@ -821,6 +860,12 @@ class _TimerActionButton extends StatelessWidget {
   /// haptic instead of medium. Hidden from release builds at the call site
   /// via `if (kDebugMode)`.
   final bool isDebug;
+
+  /// Optional long-press handler. Used by the debug SKIP button to
+  /// distinguish a 10s tap-skip from a 60s long-press-skip; null on the
+  /// production PAUSE / STOP buttons. Long-press fires a medium-impact
+  /// haptic to differentiate it from the light-impact tap.
+  final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -844,6 +889,12 @@ class _TimerActionButton extends StatelessWidget {
         }
         onTap();
       },
+      onLongPress: onLongPress == null
+          ? null
+          : () {
+              HapticFeedback.mediumImpact();
+              onLongPress!();
+            },
       behavior: HitTestBehavior.opaque,
       child: Container(
         width: width,
