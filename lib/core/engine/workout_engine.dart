@@ -421,8 +421,19 @@ class WorkoutEngine extends ChangeNotifier {
             case WorkoutBlockType.boxing:
               return cueBellEnd;
             case WorkoutBlockType.tabata:
-              // Tabata transitions to rest silently; whistle_long fires
-              // on rest entry.
+              // R1..R{N-1}: stay silent at the 1s-early gate —
+              // whistle_double fires AT remainingMs ≤ 0 from
+              // _advanceFromCurrentPhaseSmoker, on-boundary by design.
+              // R{N} (last round of the Tabata block): fire bell_end
+              // 1s early, matching the Boxing option-b shift so the
+              // gong lands ON the work→rest (or work→complete)
+              // boundary instead of starting fresh after it.
+              if (_blocks != null && _blockIdx != null) {
+                final tabataBlock = _blocks![_blockIdx!];
+                if (_roundInCurrentBlock >= tabataBlock.totalRounds) {
+                  return cueBellEnd;
+                }
+              }
               return null;
             case WorkoutBlockType.transition:
               return null;
@@ -588,15 +599,18 @@ class WorkoutEngine extends ChangeNotifier {
             // audio.play(cueBellEnd); // SUPPRESSED: fired 1s early by _pollState (option-b shift)
             break;
           case WorkoutBlockType.tabata:
-            // Tabata work-exit cue (2026-04-29):
-            //   R1..R{N-1} → whistle_double (round-end signal)
-            //   R{N} (last round of the block) → bell_end (block-end /
-            //     workout-end gong)
-            // Fires AT phase exit (remainingMs ≤ 0), NOT 1s early —
-            // Tabata cues are intentionally on-boundary.
-            if (tabataExitIsLastRoundOfBlock) {
-              _playCue(cueBellEnd);
-            } else {
+            // Tabata work-exit cue:
+            //   R1..R{N-1} → whistle_double (round-end signal), AT
+            //     remainingMs ≤ 0 — on-boundary, intentionally not
+            //     shifted (the triple-whistle reads as a beat marker
+            //     and lands cleanest on the rest-entry tick).
+            //   R{N} (last round of the block) → bell_end is fired by
+            //     the 1s-early option-b shift in _pollState (see
+            //     _earlyBellCueForPhaseEnd's Tabata work branch). NO
+            //     fire HERE on the late path — would be a duplicate
+            //     (the cue is already in _firedCuesThisPeriod) and
+            //     muddies the on-boundary intent.
+            if (!tabataExitIsLastRoundOfBlock) {
               _playCue(cueWhistleDouble);
             }
             break;

@@ -113,14 +113,26 @@ void main() {
         _count(t.audio.events, WorkoutEngine.cueWhistleDouble);
     final bellEndsBeforeR8 = _count(t.audio.events, WorkoutEngine.cueBellEnd);
 
-    // Expire R8 work — last round of B2 (Tabata).
-    t.clock.advance(const Duration(seconds: 20));
-    t.engine.debugTick();
-
-    // bell_end fired exactly once on this work-exit, NOT whistle_double.
+    // R8 bell_end now fires via the 1s-early option-b gate
+    // (`remainingMs <= 1000 && remainingMs > 0`). Drive ticks across the
+    // window:
+    //   1) advance 19s → remainingMs=1000 → tick fires bell_end
+    //   2) advance 1s → remainingMs=0 → tick advances phase
+    t.clock.advance(const Duration(seconds: 19));
+    t.engine.debugTick(); // gate window: fires bell_end
     expect(_count(t.audio.events, WorkoutEngine.cueBellEnd) - bellEndsBeforeR8,
         1,
-        reason: 'R8 (last round of Tabata block) work-exit fires bell_end');
+        reason: 'R8 fires bell_end via 1s-early option-b shift');
+
+    t.clock.advance(const Duration(seconds: 1));
+    t.engine.debugTick(); // phase advances → rest
+
+    // No second bell_end on the late-fire path (the redundant
+    // _playCue(cueBellEnd) was removed from the work-exit Tabata branch).
+    expect(_count(t.audio.events, WorkoutEngine.cueBellEnd) - bellEndsBeforeR8,
+        1,
+        reason: 'bell_end fired exactly once across the R8 work-exit '
+            'window (no duplicate on the post-boundary tick)');
     expect(
       _count(t.audio.events, WorkoutEngine.cueWhistleDouble) -
           whistleDoublesBeforeR8,
@@ -276,8 +288,11 @@ void main() {
       tick(const Duration(seconds: 20));
       tick(const Duration(seconds: 10));
     }
-    // R8 work to expiry.
-    tick(const Duration(seconds: 20));
+    // R8 work to expiry. bell_end fires via the 1s-early option-b gate
+    // — drive ticks across the (0, 1000] window: tick at remainingMs=1000
+    // fires bell_end, then tick at remainingMs=0 advances phase.
+    tick(const Duration(seconds: 19)); // → R8 work, remainingMs=1000
+    tick(const Duration(seconds: 1)); // → R8 expiry, phase advances
 
     // 8 work-entries × 1 whistle_long each (R1 was already on entry into
     // this block, R2..R8 fire on each rest→work transition).
@@ -288,8 +303,9 @@ void main() {
     // 7 whistle_double work-exits (R1..R7).
     expect(_count(audio.events, WorkoutEngine.cueWhistleDouble) - wdBase, 7,
         reason: 'R1..R7 work-exits fire whistle_double');
-    // 1 bell_end on R8 work-exit.
+    // 1 bell_end on R8 work-exit (1s-early shift).
     expect(_count(audio.events, WorkoutEngine.cueBellEnd) - beBase, 1,
-        reason: 'R8 work-exit fires bell_end (block-end)');
+        reason: 'R8 fires bell_end exactly once via 1s-early option-b '
+            'shift (no duplicate on post-boundary tick)');
   });
 }

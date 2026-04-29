@@ -416,11 +416,13 @@ void main() {
   });
 
   // --------------------------------------------------------------------
-  // 10. Block 4 R8 → complete (bell_end fires on complete-entry)
+  // 10. Block 4 R8 → complete (bell_end fires 1s-early via option-b
+  //     shift; complete-entry is silent)
   // --------------------------------------------------------------------
 
-  test('Block 4 R8 work-end → complete: silent work-exit, bell_end on '
-      'complete-entry, no rest after final round', () {
+  test('Block 4 R8 work-end → complete: bell_end fires 1s-early during '
+      'final second of work (NOT on complete-entry); no rest after final '
+      'round', () {
     runPreCountdownToBlock1();
     for (int i = 0; i < 5; i++) {
       runBoxingFullRound();
@@ -449,12 +451,25 @@ void main() {
     final whistlesBefore =
         _count(audio.playLog, WorkoutEngine.cueWhistleLong);
 
-    // Expire B4 R8 work → complete.
-    advanceAndTick(const Duration(seconds: 20));
+    // Drive R8 work to its 1s-early gate window: 19s tick lands at
+    // remainingMs=1000, fires bell_end via option-b shift.
+    advanceAndTick(const Duration(seconds: 19));
+    expect(engine.state.phase, WorkoutPhase.work,
+        reason: 'still in R8 work after 19s; phase advances at 20s');
+    expect(_count(audio.playLog, WorkoutEngine.cueBellEnd) - bellEndsBefore,
+        1,
+        reason: 'R8 (last round) fires bell_end 1s-early via option-b '
+            'shift, in WORK phase (not on complete-entry)');
+
+    // Final 1s tick → remainingMs=0 → phase advances to complete.
+    // Complete-entry must NOT fire a second bell_end (playCompletionCue:
+    // false is set in the Smoker last-block path).
+    advanceAndTick(const Duration(seconds: 1));
     expect(engine.state.phase, WorkoutPhase.complete);
     expect(_count(audio.playLog, WorkoutEngine.cueBellEnd) - bellEndsBefore,
         1,
-        reason: 'complete-entry fires exactly one bell_end');
+        reason: 'no double-bell — complete-entry stays silent because '
+            'bell_end already fired 1s-early during work');
     expect(
       _count(audio.playLog, WorkoutEngine.cueWhistleLong) - whistlesBefore,
       0,
