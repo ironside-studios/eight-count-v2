@@ -502,13 +502,21 @@ class _TimerScreenState extends State<TimerScreen> {
     }
   }
 
-  /// DEV-ONLY: fires only when [kDebugMode] so the SKIP button is tree-shaken
-  /// out of release builds. Calls the locked engine's [skipPhase] — same path
-  /// the engine's own unit tests exercise. Haptic is fired by the button
-  /// widget itself (light-impact variant), same pattern as PAUSE/STOP.
+  /// DEV-ONLY: tap on SKIP fast-forwards 10s. Long-press fast-forwards
+  /// 60s. Both route through the engine's [debugSkipForward] which
+  /// shifts time anchors (NOT mutable remaining-time state) and
+  /// suppresses cue dispatch during the multi-phase chain so skipping
+  /// across boundaries doesn't trigger a barrage of bells. Tree-shaken
+  /// from release builds via [kDebugMode]. Haptic is fired by the
+  /// button widget itself.
   void _handleSkip() {
     if (!kDebugMode) return;
-    _engine?.skipPhase();
+    _engine?.debugSkipForward(10);
+  }
+
+  void _handleSkipLong() {
+    if (!kDebugMode) return;
+    _engine?.debugSkipForward(60);
   }
 
   /// Maps the engine's phase to the user-facing label shown above the ring.
@@ -788,6 +796,7 @@ class _TimerScreenState extends State<TimerScreen> {
                                   isDebug: true,
                                   width: 100,
                                   onTap: _handleSkip,
+                                  onLongPress: _handleSkipLong,
                                 ),
                               ],
                             ],
@@ -834,6 +843,7 @@ class _TimerActionButton extends StatelessWidget {
     required this.isPrimary,
     this.width = 140,
     this.isDebug = false,
+    this.onLongPress,
   });
 
   final String label;
@@ -850,6 +860,12 @@ class _TimerActionButton extends StatelessWidget {
   /// haptic instead of medium. Hidden from release builds at the call site
   /// via `if (kDebugMode)`.
   final bool isDebug;
+
+  /// Optional long-press handler. Used by the debug SKIP button to
+  /// distinguish a 10s tap-skip from a 60s long-press-skip; null on the
+  /// production PAUSE / STOP buttons. Long-press fires a medium-impact
+  /// haptic to differentiate it from the light-impact tap.
+  final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -873,6 +889,12 @@ class _TimerActionButton extends StatelessWidget {
         }
         onTap();
       },
+      onLongPress: onLongPress == null
+          ? null
+          : () {
+              HapticFeedback.mediumImpact();
+              onLongPress!();
+            },
       behavior: HitTestBehavior.opaque,
       child: Container(
         width: width,

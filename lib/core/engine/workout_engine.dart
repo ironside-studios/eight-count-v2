@@ -86,6 +86,11 @@ class WorkoutEngine extends ChangeNotifier {
   bool _disposed = false;
   final Set<String> _firedCuesThisPeriod = <String>{};
 
+  /// Debug-only: when true, [_playCue] no-ops to suppress audio dispatch
+  /// during the multi-phase chain inside [debugSkipForward]. Always false
+  /// in release (the only setter is gated by [kDebugMode]).
+  bool _suppressCuesUntilNextTick = false;
+
   // --- Smoker-only state (null for WorkoutConfig configs) ---
   List<WorkoutBlock>? _blocks;
   int? _blockIdx;
@@ -201,6 +206,59 @@ class WorkoutEngine extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// DEBUG ONLY: Advances the workout clock forward by [seconds] seconds.
+  /// Tree-shaken from release builds (kDebugMode is `const false` in
+  /// release; the early return becomes dead code Dart's tree-shaker
+  /// strips). Used for fast-forwarding through phases to test audio
+  /// cues at boundaries without sitting through full phase durations.
+  ///
+  /// Implementation: shifts the current phase's [_phaseStartedAt] and
+  /// [_phaseEndsAt] anchors backward by [seconds] so the derived
+  /// remainingMs (always computed from `_phaseEndsAt.difference(_clock())`,
+  /// never stored) jumps forward without any state mutation. Preserves
+  /// the engine's derived-state invariant.
+  ///
+  /// If the shift takes the current phase past expiry (remainingMs ≤ 0),
+  /// chains [_advanceFromCurrentPhase] calls until landing in a
+  /// non-expired phase or [WorkoutPhase.complete]. Cue dispatch is
+  /// suppressed for the duration of the chain via
+  /// [_suppressCuesUntilNextTick] so multi-phase skips don't trigger a
+  /// barrage of bell/whistle sounds.
+  void debugSkipForward(int seconds) {
+    if (!kDebugMode) return;
+    if (seconds <= 0) return;
+    if (!_isStarted) return;
+    if (_phase == WorkoutPhase.complete) return;
+    if (_phaseStartedAt == null || _phaseEndsAt == null) return;
+
+    final shift = Duration(seconds: seconds);
+    _phaseStartedAt = _phaseStartedAt!.subtract(shift);
+    _phaseEndsAt = _phaseEndsAt!.subtract(shift);
+
+    _suppressCuesUntilNextTick = true;
+    while (_phase != WorkoutPhase.complete &&
+        _phaseEndsAt!.difference(_clock()).inMilliseconds <= 0) {
+      _advanceFromCurrentPhase();
+    }
+    _suppressCuesUntilNextTick = false;
+
+    // Mark the wood_clack as "already fired" for the new period if the
+    // skip landed inside its lead-time window — otherwise the next
+    // _pollState would dispatch a clack as if the warning hadn't yet
+    // played (it would have, naturally, if the user had ridden the
+    // phase normally instead of skipping). This keeps cue idempotency
+    // honest across skips.
+    final remainingAfter =
+        _phaseEndsAt!.difference(_clock()).inMilliseconds;
+    if (_isWoodClackEligiblePeriod() &&
+        remainingAfter <=
+            _woodClackLeadTimeForCurrentPhase().inMilliseconds) {
+      _firedCuesThisPeriod.add(cueWoodClack);
+    }
+
+    notifyListeners();
+  }
+
   /// Short-circuit the workout to complete.
   ///
   /// By default fires bell_end — natural completion (final work round expiry,
@@ -235,6 +293,18 @@ class WorkoutEngine extends ChangeNotifier {
   void debugTick() => _pollState();
 
   // --- Internals ---
+
+  /// Routes audio.play() through this helper so [debugSkipForward] can
+  /// suppress cue dispatch during a multi-phase fast-forward without
+  /// emitting a barrage of bells/whistles. Release builds are unaffected
+  /// — [_suppressCuesUntilNextTick] only flips to true inside
+  /// [debugSkipForward], which itself short-circuits if [kDebugMode] is
+  /// false. Net effect: in release, this is a thin pass-through to
+  /// audio.play and the suppression check tree-shakes away.
+  void _playCue(String cue) {
+    if (kDebugMode && _suppressCuesUntilNextTick) return;
+    audio.play(cue);
+  }
 
   Duration _currentPhaseDuration() {
     switch (_phase) {
@@ -426,7 +496,7 @@ class WorkoutEngine extends ChangeNotifier {
         remainingMs <= _woodClackLeadTimeForCurrentPhase().inMilliseconds &&
         !_firedCuesThisPeriod.contains(cueWoodClack)) {
       _firedCuesThisPeriod.add(cueWoodClack);
-      audio.play(cueWoodClack);
+      _playCue(cueWoodClack);
     }
 
     // Fire phase-end / phase-entry bells 1 second early so the display
@@ -447,7 +517,7 @@ class WorkoutEngine extends ChangeNotifier {
       final cueKey = _earlyBellCueForPhaseEnd();
       if (cueKey != null && !_firedCuesThisPeriod.contains(cueKey)) {
         _firedCuesThisPeriod.add(cueKey);
-        audio.play(cueKey);
+        _playCue(cueKey);
       }
     }
 
@@ -525,9 +595,9 @@ class WorkoutEngine extends ChangeNotifier {
             // Fires AT phase exit (remainingMs ≤ 0), NOT 1s early —
             // Tabata cues are intentionally on-boundary.
             if (tabataExitIsLastRoundOfBlock) {
-              audio.play(cueBellEnd);
+              _playCue(cueBellEnd);
             } else {
-              audio.play(cueWhistleDouble);
+              _playCue(cueWhistleDouble);
             }
             break;
           case WorkoutBlockType.transition:
@@ -606,7 +676,7 @@ class WorkoutEngine extends ChangeNotifier {
               // early via _pollState. Tabata cues are intentionally
               // on-boundary so they read as "round started" rather than
               // "round about to start".
-              audio.play(cueWhistleLong);
+              _playCue(cueWhistleLong);
               break;
             case WorkoutBlockType.transition:
               // Transitions have no work phase; unreachable.
@@ -634,7 +704,7 @@ class WorkoutEngine extends ChangeNotifier {
         //   (2) natural final-round completion when work-exit already fired
         //       bell_end (Boxing path; or Smoker last-block-is-Boxing).
         if (playCompletionCue) {
-          audio.play(cueBellEnd);
+          _playCue(cueBellEnd);
         }
         _ticker?.stop();
         break;
