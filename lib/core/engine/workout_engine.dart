@@ -268,11 +268,21 @@ class WorkoutEngine extends ChangeNotifier {
   ///   - Boxing preset:  work or rest (fires at 11s remaining)
   ///   - Smoker preset:  Boxing-block work or rest, OR transition rest (11s)
   ///   - Tabata blocks:  never (periods too short for an 11s warning)
+  ///   - Any work block ≤ 12s: never (warning would fire essentially at
+  ///     work-start, which is meaningless). Rest, GET READY, and
+  ///     transitions are NOT affected by this short-work guard.
   bool _isWoodClackEligiblePeriod() {
     if (_phase == WorkoutPhase.preCountdown) {
       return true;
     }
     if (_phase != WorkoutPhase.work && _phase != WorkoutPhase.rest) {
+      return false;
+    }
+    // Suppress 10s-out warning on work phases ≤ 12 seconds (block too short
+    // to warn). Applies to Boxing/Custom/Smoker uniformly. Rest, GET READY,
+    // and transitions are NOT affected.
+    if (_phase == WorkoutPhase.work &&
+        _currentPhaseDuration().inSeconds <= 12) {
       return false;
     }
     if (_isSmoker) {
