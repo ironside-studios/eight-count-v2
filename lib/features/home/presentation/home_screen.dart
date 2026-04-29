@@ -7,6 +7,7 @@ import '../../../core/constants/app_spacing.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../settings/presentation/settings_screen.dart';
+import '../widgets/matrix_rain_background.dart';
 import 'widgets/preset_card.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -24,12 +25,21 @@ class HomeScreen extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
     return Scaffold(
       backgroundColor: AppColors.black,
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
+      body: Stack(
+        children: [
+          // Bottom layer: matrix-rain ambient background. Falling
+          // "8COUNT" characters with a static bleed-through layer that
+          // characters brighten when crossing. Fully behind the cards;
+          // pauses on navigation away and on app backgrounding.
+          const Positioned.fill(child: MatrixRainBackground()),
+          // Foreground: existing home layout (header, brand, 3 cards),
+          // unchanged.
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
               const SizedBox(height: AppSpacing.md),
               _Header(
                 onGearTap: () => _openSettings(context),
@@ -76,10 +86,12 @@ class HomeScreen extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(height: AppSpacing.lg),
-            ],
+                  const SizedBox(height: AppSpacing.lg),
+                ],
+              ),
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

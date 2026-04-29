@@ -10,11 +10,17 @@ import '../../features/timer/presentation/timer_screen.dart';
 import '../../features/timer/presentation/workout_complete_screen.dart';
 import '../../generated/l10n/app_localizations.dart';
 import '../models/workout_config.dart';
+import '../navigation/route_observer.dart';
 
 /// App-wide router. Two routes for now; the timer route swaps in the real
 /// TimerScreen during Step 3.2 (the placeholder below goes away).
+///
+/// `observers:` registers the shared [routeObserver] so [RouteAware]
+/// widgets (matrix-rain home background) can pause/resume tickers when
+/// the user navigates between screens.
 final GoRouter appRouter = GoRouter(
   initialLocation: '/',
+  observers: <NavigatorObserver>[routeObserver],
   routes: <RouteBase>[
     GoRoute(
       path: '/',
