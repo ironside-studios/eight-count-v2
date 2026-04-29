@@ -328,15 +328,17 @@ class WorkoutEngine extends ChangeNotifier {
   String? _earlyBellCueForPhaseEnd() {
     switch (_phase) {
       case WorkoutPhase.preCountdown:
-        // Fire bell_start (or whistle_long for Smoker Tabata first block)
-        // 1s before preCountdown ends.
+        // Fire bell_start 1s before preCountdown ends. For Smoker first
+        // block of type Tabata, return null — the on-boundary
+        // whistle_long fired from _advanceToPhase work-Tabata branch
+        // handles work-entry cuing for Tabata (no early shift).
         if (_isSmoker) {
           final firstBlock = _blocks!.first;
           switch (firstBlock.blockType) {
             case WorkoutBlockType.boxing:
               return cueBellStart;
             case WorkoutBlockType.tabata:
-              return cueWhistleLong;
+              return null;
             case WorkoutBlockType.transition:
               return null;
           }
@@ -371,12 +373,15 @@ class WorkoutEngine extends ChangeNotifier {
               _roundInCurrentBlock >= currentBlock.totalRounds;
           if (currentBlock.blockType == WorkoutBlockType.transition) {
             // Transition rest ends → next content block's first work.
+            // Boxing-next: fire bell_start 1s early (option-b shift).
+            // Tabata-next: return null — whistle_long fires on-boundary
+            // from _advanceToPhase, not 1s early.
             final nextBlock = blocks[_blockIdx! + 1];
             switch (nextBlock.blockType) {
               case WorkoutBlockType.boxing:
                 return cueBellStart;
               case WorkoutBlockType.tabata:
-                return cueWhistleLong;
+                return null;
               case WorkoutBlockType.transition:
                 return null;
             }
@@ -388,12 +393,14 @@ class WorkoutEngine extends ChangeNotifier {
             // is unreachable, but defensively return null.
             return null;
           }
-          // Standard intra-block rest → next work in same block.
+          // Standard intra-block rest → next work in same block. Boxing
+          // gets bell_start 1s early (option-b). Tabata returns null —
+          // whistle_long fires on-boundary from _advanceToPhase.
           switch (currentBlock.blockType) {
             case WorkoutBlockType.boxing:
               return cueBellStart;
             case WorkoutBlockType.tabata:
-              return cueWhistleLong;
+              return null;
             case WorkoutBlockType.transition:
               return null;
           }
@@ -422,21 +429,6 @@ class WorkoutEngine extends ChangeNotifier {
       audio.play(cueWoodClack);
     }
 
-    // Tabata work 10-second warning: whistle_double fires at remaining ≤
-    // 11000ms (1-second-early shift parallel to bell cues — the 2.04s clip
-    // finishes at ~9s remaining, well before bell_end at ~1s remaining).
-    // Idempotent via _firedCuesThisPeriod. Tabata work only — Boxing work
-    // gets wood_clack via the eligibility branch above; Tabata gets
-    // whistle_double here as its analog 10s-out warning.
-    if (_isSmoker &&
-        _phase == WorkoutPhase.work &&
-        _currentBlockType == WorkoutBlockType.tabata &&
-        remainingMs <= 11000 &&
-        !_firedCuesThisPeriod.contains(cueWhistleDouble)) {
-      _firedCuesThisPeriod.add(cueWhistleDouble);
-      audio.play(cueWhistleDouble);
-    }
-
     // Fire phase-end / phase-entry bells 1 second early so the display
     // reads the full duration of the new phase instead of sitting on "0"
     // for a beat. The phase boundary itself is unchanged at remainingMs=0;
@@ -444,25 +436,17 @@ class WorkoutEngine extends ChangeNotifier {
     //
     // Per-cue keys ensure each bell fires at most once per phase, in line
     // with the existing wood_clack contract.
+    //
+    // Note: Tabata cues (whistle_long at work-start, whistle_double at
+    // round-end, bell_end at block-end) are intentionally on-boundary,
+    // not 1s-early — see _earlyBellCueForPhaseEnd, which returns null
+    // for all Tabata-work-entry paths. This block continues to fire
+    // bell_start / bell_end / wood_clack for Boxing and the bell on
+    // transition→Boxing-block work-entry.
     if (remainingMs <= 1000 && remainingMs > 0) {
       final cueKey = _earlyBellCueForPhaseEnd();
       if (cueKey != null && !_firedCuesThisPeriod.contains(cueKey)) {
-        // [CUE-DEBUG] schedule site — early-bell decided to fire this cue.
-        // Logged only for whistle_long to keep diagnosis focused on Bug 2.
-        if (cueKey == cueWhistleLong) {
-          print('[CUE-DEBUG] ${DateTime.now().millisecondsSinceEpoch} | '
-              'schedule:whistle_long | '
-              'block=${_userFacingBlockIndex()} phase=$_phase '
-              'round=$_currentRound | remainingMs=$remainingMs');
-        }
         _firedCuesThisPeriod.add(cueKey);
-        // [CUE-DEBUG] dispatch site — actual AudioService.play() call.
-        if (cueKey == cueWhistleLong) {
-          print('[CUE-DEBUG] ${DateTime.now().millisecondsSinceEpoch} | '
-              'dispatch:whistle_long | '
-              'block=${_userFacingBlockIndex()} phase=$_phase '
-              'round=$_currentRound | remainingMs=$remainingMs');
-        }
         audio.play(cueKey);
       }
     }
@@ -522,21 +506,36 @@ class WorkoutEngine extends ChangeNotifier {
 
       case WorkoutPhase.work:
         // Work-exit cue per block type.
+        // Compute "last round of block" once — needed both for the
+        // work-exit Tabata cue selection (whistle_double vs bell_end) and
+        // for the phase-advance branching below.
+        final tabataExitBlock = blocks[_blockIdx!];
+        final tabataExitIsLastRoundOfBlock =
+            _roundInCurrentBlock >= tabataExitBlock.totalRounds;
+
         switch (_currentBlockType!) {
           case WorkoutBlockType.boxing:
             // audio.play(cueBellEnd); // SUPPRESSED: fired 1s early by _pollState (option-b shift)
             break;
           case WorkoutBlockType.tabata:
-            // Silent — next phase entry handles cue continuity.
+            // Tabata work-exit cue (2026-04-29):
+            //   R1..R{N-1} → whistle_double (round-end signal)
+            //   R{N} (last round of the block) → bell_end (block-end /
+            //     workout-end gong)
+            // Fires AT phase exit (remainingMs ≤ 0), NOT 1s early —
+            // Tabata cues are intentionally on-boundary.
+            if (tabataExitIsLastRoundOfBlock) {
+              audio.play(cueBellEnd);
+            } else {
+              audio.play(cueWhistleDouble);
+            }
             break;
           case WorkoutBlockType.transition:
             // Transitions have no work phase; unreachable.
             break;
         }
 
-        final currentBlock = blocks[_blockIdx!];
-        final isLastRoundOfBlock =
-            _roundInCurrentBlock >= currentBlock.totalRounds;
+        final isLastRoundOfBlock = tabataExitIsLastRoundOfBlock;
 
         if (!isLastRoundOfBlock) {
           // Intra-block: next is rest. Round counter advances on rest-exit.
@@ -549,15 +548,13 @@ class WorkoutEngine extends ChangeNotifier {
           _advanceToPhase(WorkoutPhase.rest);
         } else {
           // Last round of the LAST block → complete.
-          // If the last block is Boxing, bell_end already fired on work-exit
-          // above; suppress complete-entry to avoid a double bell. If the
-          // last block is Tabata, work-exit was silent — fire bell_end on
-          // complete-entry so the workout ends with the triumphant cue.
-          final lastBlockWasBoxing =
-              _currentBlockType == WorkoutBlockType.boxing;
+          // Both Boxing-last-block (bell_end fired via 1s-early shift) AND
+          // Tabata-last-block (bell_end fired above on the work-exit Tabata
+          // branch) have ALREADY fired bell_end by this point. Suppress
+          // complete-entry to avoid a double bell.
           _advanceToPhase(
             WorkoutPhase.complete,
-            playCompletionCue: !lastBlockWasBoxing,
+            playCompletionCue: false,
           );
         }
         break;
@@ -604,17 +601,12 @@ class WorkoutEngine extends ChangeNotifier {
               // audio.play(cueBellStart); // SUPPRESSED: fired 1s early by _pollState (option-b shift)
               break;
             case WorkoutBlockType.tabata:
-              // [CUE-DEBUG] phase transition site — engine just entered
-              // Tabata work. Logged for Bug 2 diagnosis to compare against
-              // schedule:whistle_long / dispatch:whistle_long timestamps
-              // emitted from _pollState during the preceding rest's last
-              // second.
-              print('[CUE-DEBUG] ${DateTime.now().millisecondsSinceEpoch} | '
-                  'transition:tabata_work_entry | '
-                  'block=${_userFacingBlockIndex()} phase=$_phase '
-                  'round=$_currentRound | '
-                  'remainingMs=${_phaseEndsAt?.difference(_clock()).inMilliseconds ?? -1}');
-              // audio.play(cueWhistleLong); // SUPPRESSED: fired 1s early by _pollState (option-b shift)
+              // Tabata work-start cue (2026-04-29): whistle_long fires
+              // AT phase entry (full work duration remaining), NOT 1s
+              // early via _pollState. Tabata cues are intentionally
+              // on-boundary so they read as "round started" rather than
+              // "round about to start".
+              audio.play(cueWhistleLong);
               break;
             case WorkoutBlockType.transition:
               // Transitions have no work phase; unreachable.

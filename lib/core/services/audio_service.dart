@@ -80,7 +80,7 @@ class AudioService with WidgetsBindingObserver {
   static const Duration bellStartDuration = Duration(milliseconds: 2976);
   static const Duration bellEndDuration = Duration(milliseconds: 3264);
   static const Duration whistleLongDuration = Duration(milliseconds: 936);
-  static const Duration whistleDoubleDuration = Duration(milliseconds: 2040);
+  static const Duration whistleDoubleDuration = Duration(milliseconds: 889);
   static const Duration woodClackDuration = Duration(milliseconds: 1896);
 
   // --- Static maps: cue identity, priority, asset path ---
