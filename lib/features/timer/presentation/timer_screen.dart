@@ -58,11 +58,14 @@ import 'package:eight_count/main.dart' show audioService;
 /// without consulting the phase. Resolving to a single integer linearIdx
 /// upfront eliminates that ambiguity for the rest of the loop.
 ///
-/// `total` here INCLUDES the preCountdown so the displayed value during
-/// preCountdown reflects "full workout duration" (e.g., 57:25 for V2
-/// standard Smoker = 45 warmup + 3400 content/transitions). PreCountdown
-/// elapsed never counts against the displayed remaining: as soon as
-/// content begins, the value drops by the work/rest seconds consumed.
+/// `total` here EXCLUDES the preCountdown to align with
+/// [SmokerConfig.totalDurationSeconds]'s documented contract and with
+/// the WorkoutConfig branch of [_remainingTotalSeconds] (Boxing /
+/// Custom). For V2 standard Smoker this returns 3400s (56:40) at
+/// preCountdown / round 1 work-start — no longer 3445s. The locked
+/// 45s warmup is treated as ceremony, not workout time. Updated
+/// 2026-04-30 alongside the off-by-45 display bug fix that affected
+/// Boxing and Custom too.
 @visibleForTesting
 int remainingTotalSecondsSmoker(
   SmokerConfig config,
@@ -72,8 +75,7 @@ int remainingTotalSecondsSmoker(
   required int? currentBlockIndex,
   required WorkoutBlockType? blockType,
 }) {
-  final int totalMs =
-      (config.totalDurationSeconds + config.preCountdown.inSeconds) * 1000;
+  final int totalMs = config.totalDurationSeconds * 1000;
 
   if (phase == WorkoutPhase.preCountdown) {
     return (totalMs / 1000).ceil();
@@ -661,17 +663,16 @@ class _TimerScreenState extends State<TimerScreen> {
 
               final bool showTotalCard = engine != null &&
                   (phase == WorkoutPhase.work || phase == WorkoutPhase.rest);
-              // Bug 4 (2026-04-28): the underlying _remainingTotalSeconds
-              // math includes preCountdown in the total anchor, which made
-              // the displayed TOTAL read 0:46 when phase remaining read
-              // 0:01 at the end of the final work block — the 45s gap was
-              // the unspent preCountdown reservation. The dual-zero
-              // contract (TOTAL hits :00 the same instant final phase
-              // hits :00) is enforced HERE at the display layer by
-              // subtracting preCountdown.inSeconds from the rendered
-              // value during content phases. The underlying math (and
-              // its 20 unit tests in timer_screen_smoker_total_time_test)
-              // stay intact.
+              // TOTAL math contract (2026-04-30): _remainingTotalSeconds()
+              // returns work+rest only (preCountdown excluded) for ALL
+              // configs (Boxing, Custom, Smoker). The historical
+              // subtraction here was double-correcting the WorkoutConfig
+              // branch (already-correct value was reduced by 45s),
+              // shipping all 3 presets with TOTAL displayed 45s low
+              // throughout work/rest. Smoker's underlying function was
+              // updated in the same pass to align with its documented
+              // SmokerConfig.totalDurationSeconds contract. Display now
+              // passes the engine value through directly.
               int rawTotalRemainingSec = 0;
               if (engine != null) {
                 rawTotalRemainingSec = _remainingTotalSeconds(
@@ -683,22 +684,9 @@ class _TimerScreenState extends State<TimerScreen> {
                   blockType: blockType,
                 );
               }
-              final int preCountdownSec = engine == null
-                  ? 0
-                  : (engine.config is SmokerConfig
-                      ? (engine.config as SmokerConfig)
-                          .preCountdown
-                          .inSeconds
-                      : (engine.config as WorkoutConfig)
-                          .preCountdown
-                          .inSeconds);
               final int totalRemainingSec = engine == null
                   ? 0
-                  : (phase == WorkoutPhase.preCountdown ||
-                          phase == WorkoutPhase.complete)
-                      ? rawTotalRemainingSec
-                      : (rawTotalRemainingSec - preCountdownSec)
-                          .clamp(0, 9999);
+                  : rawTotalRemainingSec.clamp(0, 9999);
 
               return Stack(
                 children: [

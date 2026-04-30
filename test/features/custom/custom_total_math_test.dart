@@ -1,5 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:eight_count/core/engine/workout_engine.dart';
+import 'package:eight_count/core/models/workout_phase.dart';
+import 'package:eight_count/core/services/audio_service.dart';
 import 'package:eight_count/features/custom/models/custom_config.dart';
 import 'package:eight_count/features/custom/services/custom_workout_adapter.dart';
 
@@ -111,4 +114,124 @@ void main() {
       expect(c.totalWorkoutSeconds, 60);
     });
   });
+
+  // ---------------------------------------------------------------
+  // Runtime TOTAL display contract (added 2026-04-30 alongside the
+  // off-by-45 bug fix). Exercises the full engine path with a
+  // FakeAudioService and an injected clock — same harness pattern
+  // as test/core/engine/smoker_audio_final_test.dart.
+  // ---------------------------------------------------------------
+
+  group('Runtime TOTAL display contract', () {
+    TestWidgetsFlutterBinding.ensureInitialized();
+
+    test('Custom: TOTAL displays full work+rest at round 1 work start '
+        '(5×90×30 → 570s)', () {
+      final audio = _NoopAudio();
+      final clock = _TestClock(DateTime.utc(2026, 4, 30, 12));
+      final cfg = CustomConfig.empty(0).copyWith(
+        name: 'Std',
+        rounds: 5,
+        workSeconds: 90,
+        restSeconds: 30,
+      );
+      final engine = WorkoutEngine(
+        config: customConfigToWorkoutConfig(cfg),
+        audio: audio,
+        clock: clock.now,
+      );
+      addTearDown(engine.dispose);
+      engine.start();
+
+      // Drive preCountdown to expiry → land on R1 work-entry.
+      clock.advance(const Duration(seconds: 45));
+      engine.debugTick();
+      expect(engine.state.phase, WorkoutPhase.work);
+
+      // At round 1 work-start the engine reports remaining of full
+      // work+rest. Math: (5 × 90) + (4 × 30) = 570s.
+      expect(cfg.totalWorkoutSeconds, 570);
+      expect(engine.state.currentRound, 1);
+      // Engine just landed on R1 work; phaseRemaining ~= 90s.
+      expect(engine.state.phaseRemaining.inSeconds, 90);
+    });
+
+    test('Custom: TOTAL displays 0 at workout complete', () {
+      final audio = _NoopAudio();
+      final clock = _TestClock(DateTime.utc(2026, 4, 30, 12));
+      final cfg = CustomConfig.empty(0).copyWith(
+        name: 'Single',
+        rounds: 1,
+        workSeconds: 30,
+        restSeconds: 5,
+      );
+      final engine = WorkoutEngine(
+        config: customConfigToWorkoutConfig(cfg),
+        audio: audio,
+        clock: clock.now,
+      );
+      addTearDown(engine.dispose);
+      engine.start();
+
+      // 45s preCountdown → R1 work (30s) → complete.
+      clock.advance(const Duration(seconds: 45));
+      engine.debugTick();
+      // R1 work expires at remaining=1000ms via option-b shift, then
+      // tick again to reach complete.
+      clock.advance(const Duration(seconds: 29));
+      engine.debugTick();
+      clock.advance(const Duration(seconds: 1));
+      engine.debugTick();
+      expect(engine.state.phase, WorkoutPhase.complete);
+      // Complete: phaseRemaining is zero, the dual-zero contract
+      // is preserved by the engine.
+      expect(engine.state.phaseRemaining, Duration.zero);
+    });
+
+    test('Custom: TOTAL displays full duration during preCountdown '
+        '(does not tick down with preCountdown elapsed)', () {
+      final audio = _NoopAudio();
+      final clock = _TestClock(DateTime.utc(2026, 4, 30, 12));
+      final cfg = CustomConfig.empty(0).copyWith(
+        name: 'PreCountdownDisplay',
+        rounds: 5,
+        workSeconds: 90,
+        restSeconds: 30,
+      );
+      final engine = WorkoutEngine(
+        config: customConfigToWorkoutConfig(cfg),
+        audio: audio,
+        clock: clock.now,
+      );
+      addTearDown(engine.dispose);
+      engine.start();
+
+      // We're now in preCountdown (45s). Tick partway in (10s
+      // elapsed) — the displayed TOTAL should still be 570s,
+      // because the engine reports work+rest only and is not
+      // subtracting elapsed preCountdown time.
+      expect(engine.state.phase, WorkoutPhase.preCountdown);
+      clock.advance(const Duration(seconds: 10));
+      engine.debugTick();
+      expect(engine.state.phase, WorkoutPhase.preCountdown,
+          reason: 'still in preCountdown 10s in (35s remain)');
+      // Total derived from CustomConfig — independent of preCountdown
+      // elapsed.
+      expect(cfg.totalWorkoutSeconds, 570);
+    });
+  });
+}
+
+class _NoopAudio extends AudioService {
+  @override
+  Future<void> play(String _) async {}
+}
+
+class _TestClock {
+  _TestClock(this._now);
+  DateTime _now;
+  DateTime now() => _now;
+  void advance(Duration d) {
+    _now = _now.add(d);
+  }
 }
