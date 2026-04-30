@@ -11,7 +11,16 @@ import 'package:eight_count/features/timer/presentation/timer_screen.dart'
 /// transitions; these tests pin the math at every block boundary so
 /// the regression can't ship again.
 ///
-/// V2 standard Smoker layout (3445s total = 57:25 incl. 45s warmup):
+/// **2026-04-30 update:** all expected values were reduced by 45s to
+/// align with the [SmokerConfig.totalDurationSeconds] documented
+/// contract (preCountdown EXCLUDED from total). Previously tests
+/// asserted preCountdown-inclusive values (3445 base); now they
+/// assert work+rest+transitions only (3400 base). Test description
+/// titles still reference the OLD numeric values — the assertions
+/// below are authoritative. This shift is part of the engine-wide
+/// off-by-45 TOTAL display fix that affected Boxing and Custom too.
+///
+/// V2 standard Smoker layout (3400s total = 56:40 work+rest+transitions):
 ///   preCountdown 45s
 ///   B1 Boxing  6×180/60 = 1380s
 ///   T1 60s
@@ -42,7 +51,7 @@ void main() {
   }
 
   group('SmokerConfig.standard() TOTAL time remaining', () {
-    test('1. preCountdown returns full workout duration (3445s)', () {
+    test('1. preCountdown returns full workout duration (3400s)', () {
       // currentBlockIndex/blockType are populated even during preCountdown
       // (engine seeds them in start()), but the function short-circuits
       // on phase == preCountdown anyway.
@@ -54,11 +63,11 @@ void main() {
           currentBlockIndex: 1,
           blockType: WorkoutBlockType.boxing,
         ),
-        3445,
+        3400,
       );
     });
 
-    test('2. Block 1 R1 work, 180s remaining: 3445s', () {
+    test('2. Block 1 R1 work, 180s remaining: 3400s', () {
       // Just entered work — zero work elapsed yet.
       expect(
         remaining(
@@ -68,7 +77,7 @@ void main() {
           currentBlockIndex: 1,
           blockType: WorkoutBlockType.boxing,
         ),
-        3445,
+        3400,
       );
     });
 
@@ -82,7 +91,7 @@ void main() {
           currentBlockIndex: 1,
           blockType: WorkoutBlockType.boxing,
         ),
-        3445 - 180,
+        3400 - 180,
       );
     });
 
@@ -96,7 +105,7 @@ void main() {
           currentBlockIndex: 1,
           blockType: WorkoutBlockType.boxing,
         ),
-        3445 - 180,
+        3400 - 180,
       );
     });
 
@@ -109,7 +118,7 @@ void main() {
           currentBlockIndex: 1,
           blockType: WorkoutBlockType.boxing,
         ),
-        3445 - 180 - 60,
+        3400 - 180 - 60,
       );
     });
 
@@ -124,7 +133,7 @@ void main() {
           currentBlockIndex: 1,
           blockType: WorkoutBlockType.boxing,
         ),
-        3445 - 1380,
+        3400 - 1380,
       );
     });
 
@@ -142,7 +151,7 @@ void main() {
           currentBlockIndex: 1,
           blockType: WorkoutBlockType.transition,
         ),
-        3445 - 1380,
+        3400 - 1380,
       );
     });
 
@@ -155,7 +164,7 @@ void main() {
           currentBlockIndex: 1,
           blockType: WorkoutBlockType.transition,
         ),
-        3445 - 1380 - 60,
+        3400 - 1380 - 60,
       );
     });
 
@@ -169,7 +178,7 @@ void main() {
           currentBlockIndex: 2,
           blockType: WorkoutBlockType.tabata,
         ),
-        3445 - 1380 - 60,
+        3400 - 1380 - 60,
       );
     });
 
@@ -182,7 +191,7 @@ void main() {
           currentBlockIndex: 2,
           blockType: WorkoutBlockType.tabata,
         ),
-        3445 - 1380 - 60 - 20,
+        3400 - 1380 - 60 - 20,
       );
     });
 
@@ -197,7 +206,7 @@ void main() {
           currentBlockIndex: 2,
           blockType: WorkoutBlockType.tabata,
         ),
-        3445 - 1380 - 60 - 230,
+        3400 - 1380 - 60 - 230,
       );
     });
 
@@ -210,7 +219,7 @@ void main() {
           currentBlockIndex: 2,
           blockType: WorkoutBlockType.transition,
         ),
-        3445 - 1380 - 60 - 230,
+        3400 - 1380 - 60 - 230,
       );
     });
 
@@ -223,7 +232,7 @@ void main() {
           currentBlockIndex: 2,
           blockType: WorkoutBlockType.transition,
         ),
-        3445 - 1380 - 60 - 230 - 60,
+        3400 - 1380 - 60 - 230 - 60,
       );
     });
 
@@ -237,7 +246,7 @@ void main() {
           currentBlockIndex: 3,
           blockType: WorkoutBlockType.boxing,
         ),
-        3445 - 1380 - 60 - 230 - 60,
+        3400 - 1380 - 60 - 230 - 60,
       );
     });
 
@@ -251,7 +260,7 @@ void main() {
           currentBlockIndex: 3,
           blockType: WorkoutBlockType.boxing,
         ),
-        3445 - 1380 - 60 - 230 - 60 - 1380,
+        3400 - 1380 - 60 - 230 - 60 - 1380,
       );
     });
 
@@ -264,7 +273,7 @@ void main() {
           currentBlockIndex: 3,
           blockType: WorkoutBlockType.transition,
         ),
-        3445 - 1380 - 60 - 230 - 60 - 1380,
+        3400 - 1380 - 60 - 230 - 60 - 1380,
       );
     });
 
@@ -277,7 +286,7 @@ void main() {
           currentBlockIndex: 3,
           blockType: WorkoutBlockType.transition,
         ),
-        3445 - 1380 - 60 - 230 - 60 - 1380 - 60,
+        3400 - 1380 - 60 - 230 - 60 - 1380 - 60,
       );
     });
 
@@ -291,12 +300,14 @@ void main() {
           currentBlockIndex: 4,
           blockType: WorkoutBlockType.tabata,
         ),
-        3445 - 1380 - 60 - 230 - 60 - 1380 - 60,
+        3400 - 1380 - 60 - 230 - 60 - 1380 - 60,
       );
     });
 
-    test('19. Block 4 R8 work, 0s remaining: 45s '
-        '(only the 45s preCountdown buffer remains)', () {
+    test('19. Block 4 R8 work, 0s remaining: 0s '
+        '(dual-zero contract — TOTAL hits :00 the same instant the '
+        'final phase remaining hits :00 under the 2026-04-30 '
+        'preCountdown-excluded contract)', () {
       // currentRound = 6+8+6+8 = 28. Whole workout's content + transitions
       // consumed; just the warmup-buffer of 45s remains because the
       // preCountdown is reserved at the head of `total` but not deducted
@@ -309,7 +320,7 @@ void main() {
           currentBlockIndex: 4,
           blockType: WorkoutBlockType.tabata,
         ),
-        3445 - 1380 - 60 - 230 - 60 - 1380 - 60 - 230,
+        3400 - 1380 - 60 - 230 - 60 - 1380 - 60 - 230,
       );
     });
 

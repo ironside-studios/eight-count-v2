@@ -9,6 +9,7 @@ import '../../../generated/l10n/app_localizations.dart';
 import '../../settings/presentation/settings_screen.dart';
 import '../../ads/services/ad_visibility_service.dart';
 import '../../ads/widgets/banner_ad_placeholder.dart';
+import '../../custom/widgets/custom_upsell_modal.dart';
 import '../widgets/matrix_rain_background.dart';
 import 'widgets/preset_card.dart';
 
@@ -21,6 +22,24 @@ class HomeScreen extends StatelessWidget {
       MaterialPageRoute<void>(builder: (_) => const SettingsScreen()),
     );
   }
+
+  /// Custom card tap: free users see the upsell modal, Pro users route
+  /// to the Custom preview screen. Pro is currently a stub that always
+  /// returns false; replace with RevenueCat entitlement check once the
+  /// vendor number is in.
+  void _onCustomCardTap(BuildContext context) {
+    if (_isProUser()) {
+      context.push('/custom');
+    } else {
+      CustomUpsellModal.show(context);
+    }
+  }
+
+  // TODO(revenuecat): replace with RevenueCat entitlement check for
+  //   'pro' / 'ai_video_pack' once vendor number lands. Kept as a
+  //   non-const method so the analyzer doesn't dead-code the Pro
+  //   branch in [_onCustomCardTap].
+  bool _isProUser() => false;
 
   @override
   Widget build(BuildContext context) {
@@ -53,7 +72,16 @@ class HomeScreen extends StatelessWidget {
               ),
               const SizedBox(height: AppSpacing.xxl),
               _BrandMark(title: l10n.appTitle),
-              const SizedBox(height: AppSpacing.xxl),
+              // Trimmed 48→24 (AppSpacing.xxl → lg) on 2026-04-30:
+              // ES "PERSONALIZADO" + Pro pill compresses the Custom
+              // card's text column, forcing the longer ES subtitle
+              // ("Crea el tuyo · 3 espacios guardados") to wrap to 2
+              // lines and adding ~17dp to the card's intrinsic height.
+              // The polish-pass trailing-spacer trim (24→12) absorbed
+              // the 7dp EN overflow but couldn't take the additional
+              // ES wrap. Freeing 24dp here gives the Expanded cards
+              // column a comfortable cushion in BOTH locales.
+              const SizedBox(height: AppSpacing.lg),
               Expanded(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -81,18 +109,19 @@ class HomeScreen extends StatelessWidget {
                       title: l10n.customTitle,
                       subtitle: l10n.customMeta,
                       isLocked: true,
-                      onTap: () {
-                        // TODO(pro-gate): mirror Smoker's Pro gate once it
-                        // exists. Until then, route unconditionally — Step
-                        // 5 spec's documented fallback. PresetCard's own
-                        // GestureDetector already fires mediumImpact.
-                        context.push('/custom');
-                      },
+                      onTap: () => _onCustomCardTap(context),
                     ),
                   ],
                 ),
               ),
-                  const SizedBox(height: AppSpacing.lg),
+                  // Trimmed 24→12 (AppSpacing.lg → md) on 2026-04-30:
+                  // banner placeholder added 50dp below the Stack;
+                  // the 3-card Expanded column was overflowing the
+                  // available height by ~7px on the Custom (third)
+                  // card. 12px clears the overflow with comfortable
+                  // visual separation between the bottom card and
+                  // the banner.
+                  const SizedBox(height: AppSpacing.md),
                 ],
               ),
             ),

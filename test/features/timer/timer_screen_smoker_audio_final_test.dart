@@ -6,19 +6,17 @@ import 'package:eight_count/core/models/workout_phase.dart';
 import 'package:eight_count/features/timer/presentation/timer_screen.dart'
     show remainingTotalSecondsSmoker;
 
-/// Bug 4 (2026-04-28) — display formula for TOTAL subtracts
-/// preCountdown.inSeconds during work/rest so the displayed value hits
-/// :00 at the same instant the final phase remaining hits :00.
+/// **2026-04-30 update:** the off-by-45 TOTAL display bug was fixed
+/// engine-wide. Both [remainingTotalSecondsSmoker] AND the
+/// timer-screen display layer were aligned to the documented
+/// [SmokerConfig.totalDurationSeconds] contract (preCountdown
+/// EXCLUDED). The display layer is now a pass-through; the engine
+/// returns the final user-facing value directly.
 ///
-/// The underlying [remainingTotalSecondsSmoker] math is unchanged and
-/// still includes preCountdown in the totalMs anchor — that pure
-/// function is pinned to its existing 20 expected values in
-/// test/features/timer/timer_screen_smoker_total_time_test.dart. The
-/// dual-zero contract is enforced at the *display* layer by subtracting
-/// preCountdown.inSeconds from the rendered total.
-///
-/// These tests verify the display formula produces 0 at the final phase
-/// expiry and a coherent value mid-workout.
+/// Previously these tests asserted the bug-perpetuating subtraction
+/// at the display layer; they now assert the corrected pass-through
+/// contract. The dual-zero invariant (TOTAL :00 same frame as final
+/// phase :00) is preserved.
 int _displayTotalSeconds({
   required SmokerConfig cfg,
   required WorkoutPhase phase,
@@ -27,28 +25,27 @@ int _displayTotalSeconds({
   required int? currentBlockIndex,
   required WorkoutBlockType? blockType,
 }) {
-  final raw = remainingTotalSecondsSmoker(
+  return remainingTotalSecondsSmoker(
     cfg,
     phase,
     currentRound,
     phaseRemainingMs,
     currentBlockIndex: currentBlockIndex,
     blockType: blockType,
-  );
-  if (phase == WorkoutPhase.preCountdown || phase == WorkoutPhase.complete) {
-    return raw;
-  }
-  return (raw - cfg.preCountdown.inSeconds).clamp(0, 9999);
+  ).clamp(0, 9999);
 }
 
 void main() {
   final cfg = SmokerConfig.standard();
 
   test(
-      'Bug 4 — display TOTAL reads 0 at the same instant final phase '
-      'remaining reads 0 (Block 4 R8 Tabata work expiry)', () {
+      'Display TOTAL reads 0 at the same instant final phase '
+      'remaining reads 0 (Block 4 R8 Tabata work expiry) — dual-zero '
+      'contract', () {
     // Final phase = Block 4 (Tabata) round 8 work, 0ms remaining.
-    // currentRound is global → 6+8+6+8 = 28.
+    // currentRound is global → 6+8+6+8 = 28. Under the post-fix
+    // engine contract, the function returns 0 directly (was 45 under
+    // the off-by-45 contract).
     final raw = remainingTotalSecondsSmoker(
       cfg,
       WorkoutPhase.work,
@@ -57,13 +54,10 @@ void main() {
       currentBlockIndex: 4,
       blockType: WorkoutBlockType.tabata,
     );
-    // The pure function returns the preCountdown reservation (45s) at
-    // this moment per its existing contract.
-    expect(raw, 45,
-        reason: 'underlying math reserves preCountdown at the head of '
-            'totalMs; test pinned to existing behavior');
+    expect(raw, 0,
+        reason: 'engine-side: 3400 total - 3400 elapsed = 0; '
+            'preCountdown is no longer reserved at totalMs head');
 
-    // Display formula subtracts preCountdown → 0.
     final displayed = _displayTotalSeconds(
       cfg: cfg,
       phase: WorkoutPhase.work,
@@ -73,13 +67,13 @@ void main() {
       blockType: WorkoutBlockType.tabata,
     );
     expect(displayed, 0,
-        reason: 'dual-zero contract: TOTAL hits :00 the instant final '
-            'phase remaining hits :00');
+        reason: 'display: pass-through of engine 0 → 0');
   });
 
   test(
-      'Bug 4 — display TOTAL during preCountdown shows full duration '
-      '(no subtraction in preCountdown phase)', () {
+      'Display TOTAL during preCountdown shows full work+rest '
+      'duration (3400s for V2 standard Smoker — preCountdown '
+      'EXCLUDED per contract)', () {
     final displayed = _displayTotalSeconds(
       cfg: cfg,
       phase: WorkoutPhase.preCountdown,
@@ -88,14 +82,17 @@ void main() {
       currentBlockIndex: 1,
       blockType: WorkoutBlockType.boxing,
     );
-    expect(displayed, 3445,
-        reason: 'during preCountdown the user sees the full workout '
-            'duration including warmup; subtraction is gated to work/rest');
+    expect(displayed, 3400,
+        reason: 'updated 2026-04-30: was 3445 under the old '
+            'preCountdown-inclusive contract; now 3400 to match '
+            'SmokerConfig.totalDurationSeconds documentation');
   });
 
   test(
-      'Bug 4 — display TOTAL at Block 1 R1 work-end equals raw - 45 '
-      '(3265 - 45 = 3220)', () {
+      'Display TOTAL at Block 1 R1 work-end equals 3220 '
+      '(3400 - 180) — same final value as the old contract, just '
+      'derived directly by the engine without the display-layer '
+      'subtraction', () {
     final displayed = _displayTotalSeconds(
       cfg: cfg,
       phase: WorkoutPhase.work,
@@ -104,15 +101,13 @@ void main() {
       currentBlockIndex: 1,
       blockType: WorkoutBlockType.boxing,
     );
-    expect(displayed, 3220,
-        reason: 'raw is 3445-180=3265 (per existing pure-fn tests); '
-            'display subtracts the 45s preCountdown reservation');
+    expect(displayed, 3220);
   });
 
   test(
-      'Bug 4 — display TOTAL during transition rest also subtracts '
-      'preCountdown (transition is content, not warmup)', () {
-    // Transition 1 just entered (60s remaining). raw = 2065.
+      'Display TOTAL during transition rest = 2020 '
+      '(3400 - 1380 full B1 = 2020 at T1 entry — engine returns '
+      'this directly, no display subtraction)', () {
     final displayed = _displayTotalSeconds(
       cfg: cfg,
       phase: WorkoutPhase.rest,
@@ -121,12 +116,12 @@ void main() {
       currentBlockIndex: 1,
       blockType: WorkoutBlockType.transition,
     );
-    expect(displayed, 2020, reason: '2065 raw - 45 preCountdown = 2020');
+    expect(displayed, 2020);
   });
 
   test(
-      'Bug 4 — display TOTAL at complete returns 0 (preCountdown '
-      'subtraction is gated off for the complete phase)', () {
+      'Display TOTAL at complete returns 0 (engine short-circuits '
+      'on phase == complete)', () {
     final displayed = _displayTotalSeconds(
       cfg: cfg,
       phase: WorkoutPhase.complete,
