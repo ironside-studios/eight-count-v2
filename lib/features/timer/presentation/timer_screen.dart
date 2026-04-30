@@ -151,6 +151,8 @@ class TimerScreen extends StatefulWidget {
     super.key,
     required this.presetId,
     this.overrideConfig,
+    this.customHeader,
+    this.customSubtitle,
   });
 
   final String presetId;
@@ -161,6 +163,17 @@ class TimerScreen extends StatefulWidget {
   /// Accepts [WorkoutConfig] or [SmokerConfig]; the engine validates at
   /// runtime.
   final Object? overrideConfig;
+
+  /// Custom-only: optional slot name shown above the GET READY label
+  /// during the preCountdown phase (e.g., "HEAVY BAG"). Hidden after
+  /// the workout begins so the active screen stays clean. Null for
+  /// Boxing/Smoker.
+  final String? customHeader;
+
+  /// Custom-only: optional workout summary line shown below
+  /// [customHeader] during preCountdown (e.g., "5 rounds · 1:30
+  /// work · 0:30 rest"). Null for Boxing/Smoker.
+  final String? customSubtitle;
 
   @override
   State<TimerScreen> createState() => _TimerScreenState();
@@ -711,6 +724,36 @@ class _TimerScreenState extends State<TimerScreen> {
                             totalContentBlocks: totalContentBlocks,
                           ),
                           const SizedBox(height: 8),
+                        ],
+                        // Custom-only: slot name + workout summary
+                        // shown above the GET READY label during
+                        // preCountdown. Hidden once the workout begins
+                        // (active screen stays clean per spec). Null
+                        // for Boxing/Smoker.
+                        if (phase == WorkoutPhase.preCountdown &&
+                            widget.customHeader != null) ...[
+                          Text(
+                            widget.customHeader!.toUpperCase(),
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.bebasNeue(
+                              fontSize: 24,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFFD4A017),
+                              letterSpacing: 2,
+                            ),
+                          ),
+                          if (widget.customSubtitle != null) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              widget.customSubtitle!,
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                color: const Color(0xFF8A8A8A),
+                              ),
+                            ),
+                          ],
+                          const SizedBox(height: 12),
                         ],
                         if (showPhaseLabel) ...[
                           Text(

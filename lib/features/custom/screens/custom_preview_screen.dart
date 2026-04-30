@@ -63,8 +63,13 @@ class _CustomPreviewScreenState extends State<CustomPreviewScreen> {
   }
 
   void _runWorkout(BuildContext context, CustomConfig config) {
-    // TODO(session-b): wire to timer engine in Session B. For now,
-    // this is a no-op (Session A is UI + persistence only).
+    // Session B: route to the existing TimerScreen via the
+    // /timer/custom/:slotIndex path. The router handler loads the
+    // CustomConfig from CustomPresetService, adapts to WorkoutConfig
+    // via the customConfigToWorkoutConfig adapter, and passes it to
+    // TimerScreen along with the slot name + workout summary so the
+    // preCountdown phase shows them above GET READY.
+    context.push('/timer/custom/${config.slotIndex}');
   }
 
   void _editSlot(BuildContext context, CustomConfig config) {
