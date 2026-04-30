@@ -134,33 +134,55 @@ void main() {
   });
 
   test(
-      'Standard config (3×60×20): wood_clack does NOT fire during '
-      'Custom work or rest periods (engine current contract — see '
-      'deviation note in Session B report)', () {
+      'Standard config (3×60×20): wood_clack fires once per work '
+      'period at remaining ≤ 11000ms (Boxing-parity audio after the '
+      'engine eligibility unlock for Custom)', () {
     final t = atR1WorkStart(rounds: 3, workSeconds: 60, restSeconds: 20);
     addTearDown(t.engine.dispose);
 
     int clacks() => _count(t.audio.events, WorkoutEngine.cueWoodClack);
 
-    // Workout-engine _isWoodClackEligiblePeriod returns
-    // `_presetId == 'boxing'` for non-Smoker single-block configs
-    // (workout_engine.dart:373). Custom presets (presetId='custom')
-    // therefore never fire wood_clack during work or rest. This is
-    // the locked-engine contract today; if Boxing parity is wanted,
-    // the engine needs to be unlocked and updated to accept
-    // 'custom' alongside 'boxing'.
+    // R1 work: cross 11s threshold (49s elapsed of 60s).
     t.clock.advance(const Duration(seconds: 49));
     t.engine.debugTick();
-    expect(clacks(), 0,
-        reason: 'Custom does NOT fire wood_clack — engine gate is '
-            "_presetId == 'boxing' on the non-Smoker branch");
+    expect(clacks(), 1,
+        reason: 'R1 work crosses 11s remaining → 1 wood_clack');
 
-    for (int i = 0; i < 30; i++) {
+    // Tick through the rest of the 11s window — must not re-fire.
+    for (int i = 0; i < 10; i++) {
       t.clock.advance(const Duration(milliseconds: 500));
       t.engine.debugTick();
     }
-    expect(clacks(), 0,
-        reason: 'no Custom wood_clack across the entire R1 work + rest');
+    expect(clacks(), 1, reason: 'idempotent within R1 work period');
+
+    // Cross R1 work expiry (final 1s window — bell_end fires; phase
+    // advances to rest).
+    t.clock.advance(const Duration(seconds: 6));
+    t.engine.debugTick();
+    expect(t.engine.state.phase, WorkoutPhase.rest);
+    final clacksAfterR1 = clacks();
+
+    // R1 rest (20s) — NO clack should fire during rest for non-Smoker
+    // configs (rest IS eligible per the engine, but only fires once
+    // per period; we verify by counting deltas across the rest).
+    // Drive rest through its 11s threshold then to expiry.
+    t.clock.advance(const Duration(seconds: 9));
+    t.engine.debugTick();
+    final clacksMidRest = clacks();
+    // Tick continues through rest expiry → R2 work entry.
+    t.clock.advance(const Duration(seconds: 11));
+    t.engine.debugTick();
+    expect(t.engine.state.phase, WorkoutPhase.work);
+    expect(t.engine.state.currentRound, 2);
+    final clacksAtR2Start = clacks();
+
+    // R1 rest (20s ≥ 12s threshold) IS clack-eligible like Boxing —
+    // so 1 clack fires during rest at 11s remaining. Verify by delta.
+    expect(clacksMidRest - clacksAfterR1, 1,
+        reason: 'R1 rest crosses 11s remaining → 1 wood_clack '
+            '(rest > 12s is clack-eligible like Boxing)');
+    expect(clacksAtR2Start, clacksMidRest,
+        reason: 'no extra clack between mid-rest and R2 work entry');
   });
 
   // -----------------------------------------------------------------
@@ -169,33 +191,44 @@ void main() {
 
   test(
       'Short work (3×12×10): wood_clack SUPPRESSED on every work '
-      'round (≤12s identity rule from fix/clack-suppress-short-work)',
-      () {
+      'round (≤12s identity rule). Rest periods may still fire if '
+      'their duration falls inside the 11s lead window.', () {
     final t = atR1WorkStart(rounds: 3, workSeconds: 12, restSeconds: 10);
     addTearDown(t.engine.dispose);
 
     int clacks() => _count(t.audio.events, WorkoutEngine.cueWoodClack);
 
-    // Run all 3 rounds end-to-end with fine-grained ticks; the
-    // ≤12s suppression rule must hold across every work period.
-    for (int round = 1; round <= 3; round++) {
-      for (int i = 0; i < 24; i++) {
-        t.clock.advance(const Duration(milliseconds: 500));
-        t.engine.debugTick();
-      }
-      // After 12s elapsed, work expires; tick the boundary.
-      if (round < 3) {
-        // R1/R2 → rest, then back to next work
-        for (int i = 0; i < 20; i++) {
-          t.clock.advance(const Duration(milliseconds: 500));
-          t.engine.debugTick();
-        }
-      }
+    // Drive R1 work to expiry — 12s in fine ticks. The ≤12s
+    // suppression rule must hold across the whole work period.
+    final clacksAtR1WorkStart = clacks();
+    for (int i = 0; i < 24; i++) {
+      t.clock.advance(const Duration(milliseconds: 500));
+      t.engine.debugTick();
     }
+    expect(t.engine.state.phase, WorkoutPhase.rest,
+        reason: 'R1 12s work expired → R1 rest');
+    expect(clacks() - clacksAtR1WorkStart, 0,
+        reason: 'R1 work (≤12s) suppresses wood_clack');
 
-    expect(clacks(), 0,
-        reason: 'Work blocks ≤12s suppress wood_clack regardless '
-            'of preset, per the Tabata identity / short-work rule');
+    // Drive R1 rest to expiry — 10s ≤ 11s lead time means clack
+    // gate is already true on rest entry. Documenting actual
+    // engine behavior: rest clacks ARE eligible (this is locked
+    // engine behavior, not specific to the Custom unlock).
+    for (int i = 0; i < 20; i++) {
+      t.clock.advance(const Duration(milliseconds: 500));
+      t.engine.debugTick();
+    }
+    expect(t.engine.state.phase, WorkoutPhase.work);
+    expect(t.engine.state.currentRound, 2);
+    final clacksAfterR1 = clacks();
+
+    // R2 work: same suppression.
+    for (int i = 0; i < 24; i++) {
+      t.clock.advance(const Duration(milliseconds: 500));
+      t.engine.debugTick();
+    }
+    expect(clacks() - clacksAfterR1, 0,
+        reason: 'R2 work (≤12s) suppresses wood_clack');
   });
 
   // -----------------------------------------------------------------
@@ -203,9 +236,9 @@ void main() {
   // -----------------------------------------------------------------
 
   test(
-      'Single round (1×60): bell_end fires at 1s-early gate on '
-      'work-end. No whistle_long. wood_clack also does NOT fire '
-      '(Custom engine contract — see deviation note)', () {
+      'Single round (1×60): wood_clack fires at 11s remaining, '
+      'bell_end at 1s-early gate on work-end. No whistle_long — no '
+      'rest periods exist', () {
     final t = atR1WorkStart(rounds: 1, workSeconds: 60, restSeconds: 5);
     addTearDown(t.engine.dispose);
 
@@ -214,14 +247,12 @@ void main() {
     int whistleLongs() =>
         _count(t.audio.events, WorkoutEngine.cueWhistleLong);
 
-    // Tick through the 11s mark — Custom does NOT fire wood_clack
-    // (engine eligibility gate is presetId == 'boxing' for the
-    // non-Smoker branch). Documenting actual behavior; see Session
-    // B report for the engine-spec mismatch deviation note.
+    // Cross 11s remaining (49s elapsed) → wood_clack fires once.
     t.clock.advance(const Duration(seconds: 49));
     t.engine.debugTick();
-    expect(clacks(), 0,
-        reason: 'Custom: wood_clack suppressed by engine gate');
+    expect(clacks(), 1,
+        reason: 'Custom (Boxing-parity) fires wood_clack at 11s '
+            'remaining of the 60s work period');
 
     // Tick to 1000ms remaining — bell_end fires via option-b shift.
     t.clock.advance(const Duration(seconds: 10));

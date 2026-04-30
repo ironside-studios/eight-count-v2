@@ -370,7 +370,9 @@ class WorkoutEngine extends ChangeNotifier {
           return _phase == WorkoutPhase.rest;
       }
     }
-    return _presetId == 'boxing';
+    // Wood clack fires for Boxing and Custom (Boxing-parity audio).
+    // Smoker has its own cue logic on the other branch.
+    return _presetId == 'boxing' || _presetId == 'custom';
   }
 
   /// Lead time before the current phase ends at which wood_clack fires.
