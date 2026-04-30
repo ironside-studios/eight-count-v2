@@ -28,7 +28,7 @@
   "cancelAction": "CANCELAR",
   "endAction": "TERMINAR",
   "roundCardLabel": "Rnd",
-  "totalTimeCardLabel": "TOTAL",
+  "totalTimeCardLabel": "TIEMPO RESTANTE",
   "workoutCompleteTitle": "ENTRENAMIENTO COMPLETO",
   "workoutCompleteTotalLabel": "TIEMPO TOTAL",
   "doneAction": "LISTO",

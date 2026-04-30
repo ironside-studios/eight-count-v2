@@ -1083,7 +1083,7 @@ class _TotalTimeCard extends StatelessWidget {
             style: GoogleFonts.bebasNeue(
               fontSize: 24,
               fontWeight: FontWeight.w700,
-              color: const Color(0xFF8A8A8A),
+              color: const Color(0xFFFFFFFF),
               letterSpacing: 2,
             ),
           ),

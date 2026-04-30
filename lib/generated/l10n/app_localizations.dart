@@ -266,10 +266,10 @@ abstract class AppLocalizations {
   /// **'Rd'**
   String get roundCardLabel;
 
-  /// Label on the total workout time card shown during a workout
+  /// Label above the workout-duration counter on the timer screen — reads 'TIME REMAINING' so the user knows the number ticks down toward zero, not up from zero. Shared across Boxing, Smoker, and Custom presets.
   ///
   /// In en, this message translates to:
-  /// **'TOTAL'**
+  /// **'TIME REMAINING'**
   String get totalTimeCardLabel;
 
   /// Title shown on the workout complete screen
