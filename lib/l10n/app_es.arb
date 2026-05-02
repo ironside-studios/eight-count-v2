@@ -85,5 +85,9 @@
   "customUpsellFeature2": "3 espacios guardados con nombre",
   "customUpsellFeature3": "Sin anuncios",
   "customUpsellCta": "Desbloquear Pro — {price}",
-  "customUpsellDismiss": "Quizás más tarde"
+  "customUpsellDismiss": "Quizás más tarde",
+  "customLoadTemplate": "Cargar Plantilla",
+  "customTemplatePickerTitle": "Elige una plantilla",
+  "customTemplateTabata": "Tabata",
+  "customTemplateTabataSubtitle": "8 asaltos · 20s trabajo · 10s descanso"
 }

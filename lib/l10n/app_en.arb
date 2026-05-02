@@ -215,5 +215,13 @@
     }
   },
   "customUpsellDismiss": "Maybe later",
-  "@customUpsellDismiss": { "description": "Dismiss button in the upsell modal" }
+  "@customUpsellDismiss": { "description": "Dismiss button in the upsell modal" },
+  "customLoadTemplate": "Load Template",
+  "@customLoadTemplate": { "description": "Button label on the Custom builder screen that opens the template picker bottom sheet" },
+  "customTemplatePickerTitle": "Choose a template",
+  "@customTemplatePickerTitle": { "description": "Header title in the template picker bottom sheet" },
+  "customTemplateTabata": "Tabata",
+  "@customTemplateTabata": { "description": "Tabata template display name (8 rounds × 20s work × 10s rest)" },
+  "customTemplateTabataSubtitle": "8 rounds · 20s work · 10s rest",
+  "@customTemplateTabataSubtitle": { "description": "Tabata template subtitle showing the locked configuration" }
 }

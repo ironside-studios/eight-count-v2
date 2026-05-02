@@ -349,11 +349,19 @@ class WorkoutEngine extends ChangeNotifier {
     if (_phase != WorkoutPhase.work && _phase != WorkoutPhase.rest) {
       return false;
     }
-    // Suppress 10s-out warning on work phases ≤ 12 seconds (block too short
-    // to warn). Applies to Boxing/Custom/Smoker uniformly. Rest, GET READY,
-    // and transitions are NOT affected.
-    if (_phase == WorkoutPhase.work &&
-        _currentPhaseDuration().inSeconds <= 12) {
+    // Suppress 10s-out warning when the current period total is ≤30s.
+    // Locked V2 5/2/26: short Tabata-style work AND rest periods don't
+    // get the warning since the cue would fire essentially at period
+    // start, becoming audio spam. Applies to Boxing/Custom/Smoker
+    // uniformly (Smoker's Tabata identity rule above already
+    // short-circuits to false for Tabata blocks, so this gate is a
+    // no-op there). GET READY and transitions (60s) remain unaffected.
+    //
+    // Supersedes the prior "work-only ≤12s" rule (4/28/26) — same
+    // intent, broader application, and now covers user-authored Custom
+    // slots with short rest periods.
+    if ((_phase == WorkoutPhase.work || _phase == WorkoutPhase.rest) &&
+        _currentPhaseDuration().inSeconds <= 30) {
       return false;
     }
     if (_isSmoker) {

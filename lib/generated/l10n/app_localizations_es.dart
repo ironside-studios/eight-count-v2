@@ -296,4 +296,17 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get customUpsellDismiss => 'Quizás más tarde';
+
+  @override
+  String get customLoadTemplate => 'Cargar Plantilla';
+
+  @override
+  String get customTemplatePickerTitle => 'Elige una plantilla';
+
+  @override
+  String get customTemplateTabata => 'Tabata';
+
+  @override
+  String get customTemplateTabataSubtitle =>
+      '8 asaltos · 20s trabajo · 10s descanso';
 }

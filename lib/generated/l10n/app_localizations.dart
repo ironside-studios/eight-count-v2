@@ -613,6 +613,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Maybe later'**
   String get customUpsellDismiss;
+
+  /// Button label on the Custom builder screen that opens the template picker bottom sheet
+  ///
+  /// In en, this message translates to:
+  /// **'Load Template'**
+  String get customLoadTemplate;
+
+  /// Header title in the template picker bottom sheet
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a template'**
+  String get customTemplatePickerTitle;
+
+  /// Tabata template display name (8 rounds × 20s work × 10s rest)
+  ///
+  /// In en, this message translates to:
+  /// **'Tabata'**
+  String get customTemplateTabata;
+
+  /// Tabata template subtitle showing the locked configuration
+  ///
+  /// In en, this message translates to:
+  /// **'8 rounds · 20s work · 10s rest'**
+  String get customTemplateTabataSubtitle;
 }
 
 class _AppLocalizationsDelegate

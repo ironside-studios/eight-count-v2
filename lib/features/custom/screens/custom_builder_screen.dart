@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../../generated/l10n/app_localizations.dart';
 import '../models/custom_config.dart';
+import '../models/custom_templates.dart';
 import '../services/custom_preset_service.dart';
 
 class CustomBuilderScreen extends StatefulWidget {
@@ -153,6 +154,8 @@ class _CustomBuilderScreenState extends State<CustomBuilderScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              _loadTemplateButton(l10n),
+              const SizedBox(height: 24),
               _nameField(l10n),
               const SizedBox(height: 24),
               _roundsSection(l10n),
@@ -414,6 +417,222 @@ class _CustomBuilderScreenState extends State<CustomBuilderScreen> {
         style: GoogleFonts.inter(
           fontSize: 13,
           color: const Color(0xFFE53935),
+        ),
+      ),
+    );
+  }
+
+  /// Top-of-form action: opens the template picker. Tapping a
+  /// template populates the numeric fields (rounds / work / rest)
+  /// from the selected [CustomTemplate]. The name field is
+  /// preserved — templates are starters, not full prefills.
+  Widget _loadTemplateButton(AppLocalizations l10n) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: _openTemplatePicker,
+      child: Container(
+        padding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1A1A1A),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: _gold.withValues(alpha: 0.3)),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.bolt_outlined,
+              size: 18,
+              color: _gold,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              l10n.customLoadTemplate,
+              style: GoogleFonts.bebasNeue(
+                fontSize: 16,
+                color: _gold,
+                letterSpacing: 1.5,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openTemplatePicker() async {
+    HapticFeedback.lightImpact();
+    final picked = await showModalBottomSheet<CustomTemplate>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: false,
+      builder: (sheetCtx) => _TemplatePickerSheet(
+        templates: CustomTemplates.all,
+      ),
+    );
+    if (picked == null) return;
+    if (!mounted) return;
+    HapticFeedback.selectionClick();
+    setState(() {
+      // Numeric overwrite via the template's applyTo helper. Name
+      // field is intentionally preserved (template = starter, not
+      // lock).
+      _draft = picked.applyTo(_draft);
+    });
+  }
+}
+
+/// Bottom-sheet picker rendering all registered [CustomTemplate]s.
+/// Returns the picked template (or null if dismissed via swipe / tap-
+/// outside) so the caller can decide what to do.
+class _TemplatePickerSheet extends StatelessWidget {
+  const _TemplatePickerSheet({required this.templates});
+
+  final List<CustomTemplate> templates;
+
+  static const Color _bg = Color(0xFF0A0A0A);
+  static const Color _gold = Color(0xFFD4A017);
+  static const Color _muted = Color(0xFF8A8A8A);
+
+  String _localizedName(AppLocalizations l10n, String id) {
+    switch (id) {
+      case 'tabata':
+        return l10n.customTemplateTabata;
+      default:
+        return id;
+    }
+  }
+
+  String _localizedSubtitle(AppLocalizations l10n, String id) {
+    switch (id) {
+      case 'tabata':
+        return l10n.customTemplateTabataSubtitle;
+      default:
+        return '';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return Container(
+      decoration: const BoxDecoration(
+        color: _bg,
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(24),
+          topRight: Radius.circular(24),
+        ),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: _muted,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                l10n.customTemplatePickerTitle,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.bebasNeue(
+                  fontSize: 20,
+                  color: _gold,
+                  letterSpacing: 1.5,
+                ),
+              ),
+              const SizedBox(height: 16),
+              for (final t in templates) ...[
+                _TemplateRow(
+                  name: _localizedName(l10n, t.id),
+                  subtitle: _localizedSubtitle(l10n, t.id),
+                  onTap: () => Navigator.of(context).pop(t),
+                ),
+                const SizedBox(height: 12),
+              ],
+              const SizedBox(height: 4),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TemplateRow extends StatefulWidget {
+  const _TemplateRow({
+    required this.name,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final String name;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  State<_TemplateRow> createState() => _TemplateRowState();
+}
+
+class _TemplateRowState extends State<_TemplateRow> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) => setState(() => _pressed = false),
+      onTapCancel: () => setState(() => _pressed = false),
+      onTap: () {
+        HapticFeedback.lightImpact();
+        widget.onTap();
+      },
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedScale(
+        scale: _pressed ? 0.98 : 1.0,
+        duration: const Duration(milliseconds: 100),
+        child: Container(
+          padding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1A1A1A),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: const Color(0xFFD4A017).withValues(alpha: 0.3),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                widget.name,
+                style: GoogleFonts.bebasNeue(
+                  fontSize: 20,
+                  color: const Color(0xFFD4A017),
+                  letterSpacing: 1.5,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                widget.subtitle,
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  color: const Color(0xFF8A8A8A),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

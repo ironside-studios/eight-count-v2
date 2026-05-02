@@ -162,10 +162,9 @@ void main() {
     expect(t.engine.state.phase, WorkoutPhase.rest);
     final clacksAfterR1 = clacks();
 
-    // R1 rest (20s) — NO clack should fire during rest for non-Smoker
-    // configs (rest IS eligible per the engine, but only fires once
-    // per period; we verify by counting deltas across the rest).
-    // Drive rest through its 11s threshold then to expiry.
+    // R1 rest (20s ≤ 30s) — under the 5/2/26 ≤30s rule, rest periods
+    // ≤30s now suppress wood_clack entirely. Pre-5/2/26 the 20s rest
+    // crossed the 11s threshold and fired one clack; now zero.
     t.clock.advance(const Duration(seconds: 9));
     t.engine.debugTick();
     final clacksMidRest = clacks();
@@ -176,11 +175,9 @@ void main() {
     expect(t.engine.state.currentRound, 2);
     final clacksAtR2Start = clacks();
 
-    // R1 rest (20s ≥ 12s threshold) IS clack-eligible like Boxing —
-    // so 1 clack fires during rest at 11s remaining. Verify by delta.
-    expect(clacksMidRest - clacksAfterR1, 1,
-        reason: 'R1 rest crosses 11s remaining → 1 wood_clack '
-            '(rest > 12s is clack-eligible like Boxing)');
+    expect(clacksMidRest - clacksAfterR1, 0,
+        reason: 'R1 rest (20s ≤ 30s) suppresses wood_clack under the '
+            '5/2/26 rule (was 1 under the prior work-only ≤12s rule)');
     expect(clacksAtR2Start, clacksMidRest,
         reason: 'no extra clack between mid-rest and R2 work entry');
   });
@@ -191,15 +188,18 @@ void main() {
 
   test(
       'Short work (3×12×10): wood_clack SUPPRESSED on every work '
-      'round (≤12s identity rule). Rest periods may still fire if '
-      'their duration falls inside the 11s lead window.', () {
+      'round AND every rest period (≤30s rule, locked V2 5/2/26 — '
+      'see workout_engine.dart _isWoodClackEligiblePeriod).', () {
     final t = atR1WorkStart(rounds: 3, workSeconds: 12, restSeconds: 10);
     addTearDown(t.engine.dispose);
 
     int clacks() => _count(t.audio.events, WorkoutEngine.cueWoodClack);
 
-    // Drive R1 work to expiry — 12s in fine ticks. The ≤12s
-    // suppression rule must hold across the whole work period.
+    // Updated 5/2/26: prior rule was "work-only ≤12s suppression"
+    // and this test asserted that 10s rest periods STILL fired
+    // wood_clack on entry. The new global ≤30s rule applies to
+    // BOTH work and rest, so all four short periods (R1 work,
+    // R1 rest, R2 work, R2 rest) are now silent.
     final clacksAtR1WorkStart = clacks();
     for (int i = 0; i < 24; i++) {
       t.clock.advance(const Duration(milliseconds: 500));
@@ -208,12 +208,10 @@ void main() {
     expect(t.engine.state.phase, WorkoutPhase.rest,
         reason: 'R1 12s work expired → R1 rest');
     expect(clacks() - clacksAtR1WorkStart, 0,
-        reason: 'R1 work (≤12s) suppresses wood_clack');
+        reason: 'R1 work (12s ≤ 30s) suppresses wood_clack');
 
-    // Drive R1 rest to expiry — 10s ≤ 11s lead time means clack
-    // gate is already true on rest entry. Documenting actual
-    // engine behavior: rest clacks ARE eligible (this is locked
-    // engine behavior, not specific to the Custom unlock).
+    // Drive R1 rest (10s ≤ 30s) — under the NEW rule this is
+    // ALSO silent. Pre-5/2/26 this fired on rest entry.
     for (int i = 0; i < 20; i++) {
       t.clock.advance(const Duration(milliseconds: 500));
       t.engine.debugTick();
@@ -221,6 +219,9 @@ void main() {
     expect(t.engine.state.phase, WorkoutPhase.work);
     expect(t.engine.state.currentRound, 2);
     final clacksAfterR1 = clacks();
+    expect(clacksAfterR1 - clacksAtR1WorkStart, 0,
+        reason: 'R1 rest (10s ≤ 30s) suppresses wood_clack '
+            '(NEW behavior under the 5/2/26 rule)');
 
     // R2 work: same suppression.
     for (int i = 0; i < 24; i++) {
@@ -228,7 +229,7 @@ void main() {
       t.engine.debugTick();
     }
     expect(clacks() - clacksAfterR1, 0,
-        reason: 'R2 work (≤12s) suppresses wood_clack');
+        reason: 'R2 work (12s ≤ 30s) suppresses wood_clack');
   });
 
   // -----------------------------------------------------------------
@@ -268,5 +269,120 @@ void main() {
     // Whistle_long never fires — there's no rest period in a
     // 1-round workout, AND Custom rest-entry is silent anyway.
     expect(whistleLongs(), 0);
+  });
+
+  // -----------------------------------------------------------------
+  // ≤30s wood_clack suppression boundary tests (rule locked V2 5/2/26).
+  // The rule: phases (work OR rest) with totalDuration ≤30s do not
+  // fire wood_clack. Boundary cases pin the threshold at 30 vs 31.
+  // -----------------------------------------------------------------
+
+  test(
+      '≤30s rule: wood_clack SUPPRESSED at exactly 30s work boundary',
+      () {
+    final t = atR1WorkStart(rounds: 2, workSeconds: 30, restSeconds: 60);
+    addTearDown(t.engine.dispose);
+
+    int clacks() => _count(t.audio.events, WorkoutEngine.cueWoodClack);
+
+    // Drive through R1 work (30s) in fine ticks. With the gate
+    // returning false at duration ≤30, nothing should fire.
+    for (int i = 0; i < 60; i++) {
+      t.clock.advance(const Duration(milliseconds: 500));
+      t.engine.debugTick();
+    }
+    expect(t.engine.state.phase, WorkoutPhase.rest);
+    expect(clacks(), 0,
+        reason: '30s work hits the boundary and suppresses; rule is <=30');
+  });
+
+  test(
+      '≤30s rule: wood_clack SUPPRESSED at 20s work (Tabata-style)',
+      () {
+    final t = atR1WorkStart(rounds: 2, workSeconds: 20, restSeconds: 60);
+    addTearDown(t.engine.dispose);
+    int clacks() => _count(t.audio.events, WorkoutEngine.cueWoodClack);
+    for (int i = 0; i < 40; i++) {
+      t.clock.advance(const Duration(milliseconds: 500));
+      t.engine.debugTick();
+    }
+    expect(t.engine.state.phase, WorkoutPhase.rest);
+    expect(clacks(), 0,
+        reason: '20s work is well below the 30s threshold');
+  });
+
+  test(
+      '≤30s rule: wood_clack SUPPRESSED at 10s rest (Tabata-style)',
+      () {
+    final t = atR1WorkStart(rounds: 2, workSeconds: 60, restSeconds: 10);
+    addTearDown(t.engine.dispose);
+    int clacks() => _count(t.audio.events, WorkoutEngine.cueWoodClack);
+
+    // R1 work (60s) crosses 11s remaining → fires 1 clack.
+    t.clock.advance(const Duration(seconds: 49));
+    t.engine.debugTick();
+    final clacksAfterR1Work = clacks();
+    expect(clacksAfterR1Work, 1, reason: 'R1 work (60s > 30s) fires');
+
+    // Drive through R1 work expiry → 10s rest.
+    t.clock.advance(const Duration(seconds: 11));
+    t.engine.debugTick();
+    expect(t.engine.state.phase, WorkoutPhase.rest);
+    // Drive the entire 10s rest in fine ticks. Under the new rule
+    // it must stay silent.
+    for (int i = 0; i < 20; i++) {
+      t.clock.advance(const Duration(milliseconds: 500));
+      t.engine.debugTick();
+    }
+    expect(clacks() - clacksAfterR1Work, 0,
+        reason: '10s rest (≤30s) suppresses wood_clack');
+  });
+
+  test(
+      '≤30s rule: wood_clack STILL FIRES at 31s work (just above '
+      'the threshold)', () {
+    final t = atR1WorkStart(rounds: 2, workSeconds: 31, restSeconds: 60);
+    addTearDown(t.engine.dispose);
+    int clacks() => _count(t.audio.events, WorkoutEngine.cueWoodClack);
+    // R1 work (31s) crosses 11s remaining at elapsed=20s.
+    t.clock.advance(const Duration(seconds: 20));
+    t.engine.debugTick();
+    expect(clacks(), 1,
+        reason: '31s work is above the threshold → fires normally');
+  });
+
+  test(
+      '≤30s rule: wood_clack STILL FIRES at 60s rest (Boxing rest, '
+      'regression check)', () {
+    final t = atR1WorkStart(rounds: 2, workSeconds: 60, restSeconds: 60);
+    addTearDown(t.engine.dispose);
+    int clacks() => _count(t.audio.events, WorkoutEngine.cueWoodClack);
+
+    // Skip past R1 work (already exercised elsewhere) into R1 rest.
+    t.clock.advance(const Duration(seconds: 60));
+    t.engine.debugTick();
+    expect(t.engine.state.phase, WorkoutPhase.rest);
+    final clacksAtR1RestStart = clacks();
+
+    // 60s rest crosses 11s remaining at elapsed=49s.
+    t.clock.advance(const Duration(seconds: 49));
+    t.engine.debugTick();
+    expect(clacks() - clacksAtR1RestStart, 1,
+        reason: '60s rest (>30s) fires wood_clack normally — Boxing '
+            'parity preserved');
+  });
+
+  test(
+      '≤30s rule: wood_clack STILL FIRES at 180s work (Boxing work, '
+      'regression check)', () {
+    final t = atR1WorkStart(rounds: 2, workSeconds: 180, restSeconds: 60);
+    addTearDown(t.engine.dispose);
+    int clacks() => _count(t.audio.events, WorkoutEngine.cueWoodClack);
+    // 180s work crosses 11s remaining at elapsed=169s.
+    t.clock.advance(const Duration(seconds: 169));
+    t.engine.debugTick();
+    expect(clacks(), 1,
+        reason: '180s work (>>30s) fires wood_clack — locked Boxing '
+            'behavior unchanged by the 5/2/26 rule');
   });
 }

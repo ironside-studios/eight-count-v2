@@ -294,4 +294,16 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get customUpsellDismiss => 'Maybe later';
+
+  @override
+  String get customLoadTemplate => 'Load Template';
+
+  @override
+  String get customTemplatePickerTitle => 'Choose a template';
+
+  @override
+  String get customTemplateTabata => 'Tabata';
+
+  @override
+  String get customTemplateTabataSubtitle => '8 rounds · 20s work · 10s rest';
 }

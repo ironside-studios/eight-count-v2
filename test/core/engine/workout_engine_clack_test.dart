@@ -66,17 +66,16 @@ int _count(List<String> log, String cue) =>
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('clack_scheduled_when_work_is_13s', () {
-    // Custom preset's wood_clack fire-rule for work uses the Smoker/Custom
-    // 11s lead time (Boxing-only gets the 12s lead). 13s work means there
-    // is exactly 1 second of "elapsed before warning" headroom, but the
-    // suppression rule (≤12) does NOT apply, so the clack must fire.
-    //
-    // Custom preset's eligibility branch only fires for presetId=='boxing',
-    // so we exercise this rule against a Boxing preset variant: build a
-    // WorkoutConfig manually keyed as 'boxing' with 13s work.
+  test('clack_suppressed_when_work_period_is_13s_below_30s_threshold',
+      () {
+    // Updated 2026-05-02: prior contract was the work-only ≤12s rule
+    // (4/28/26) under which 13s work fired wood_clack normally. The new
+    // ≤30s period-total rule (locked V2 5/2/26 — see workout_engine.dart
+    // _isWoodClackEligiblePeriod) suppresses wood_clack on ANY period
+    // (work or rest) ≤30s. 13s work is well below the new threshold,
+    // so this test now asserts suppression rather than firing.
     final audio = FakeAudioService();
-    final clock = TestClock(DateTime.utc(2026, 4, 27, 12));
+    final clock = TestClock(DateTime.utc(2026, 5, 2, 12));
     final engine = WorkoutEngine(
       config: const WorkoutConfig(
         presetId: 'boxing',
@@ -95,18 +94,16 @@ void main() {
     expect(engine.state.phase, WorkoutPhase.work);
     audio.playLog.clear();
 
-    // Tick from work-start through the 11s lead-time mark (Boxing's lead
-    // for work is 12s, so wood_clack fires at remaining ≤ 12000ms — i.e.
-    // the very first tick inside work since 13s − 12s = 1s elapsed).
-    clock.advance(const Duration(seconds: 1));
-    engine.debugTick();
-    // Continue ticking deeper into the work period; gate fires once.
-    for (int i = 0; i < 10; i++) {
+    // Tick from work-start through the entire 13s window in fine
+    // increments. Under the ≤30s rule, no wood_clack should fire at
+    // any point.
+    for (int i = 0; i < 26; i++) {
       clock.advance(const Duration(milliseconds: 500));
       engine.debugTick();
     }
-    expect(_count(audio.playLog, WorkoutEngine.cueWoodClack), 1,
-        reason: '13s work block is above the ≤12s suppression threshold');
+    expect(_count(audio.playLog, WorkoutEngine.cueWoodClack), 0,
+        reason: '13s work (≤30s) suppresses wood_clack under the '
+            '5/2/26 rule');
   });
 
   test('clack_suppressed_when_work_is_12s', () {
@@ -172,14 +169,16 @@ void main() {
         reason: '10s work block must suppress wood_clack');
   });
 
-  test('clack_scheduled_on_5s_rest_block (rest unaffected by work guard)',
-      () {
-    // Rest of 5s is well below the 12s threshold, but the suppression
-    // rule does NOT apply to rest. Eligibility for Boxing rest is "yes",
-    // so wood_clack fires at remaining ≤ 12000ms (Boxing rest lead) —
-    // i.e. immediately on rest entry given a 5s rest period.
+  test('clack_suppressed_on_5s_rest_period_below_30s_threshold', () {
+    // Updated 2026-05-02: prior contract had a "work-only" suppression
+    // rule, so 5s rest blocks DID fire wood_clack on entry (gate was
+    // open immediately because 5s ≤ 11s lead). The new ≤30s rule
+    // (locked V2 5/2/26 — see workout_engine.dart
+    // _isWoodClackEligiblePeriod) applies to BOTH work and rest, so
+    // 5s rest is now suppressed entirely. Renamed + flipped from the
+    // old "rest unaffected by work guard" assertion.
     final audio = FakeAudioService();
-    final clock = TestClock(DateTime.utc(2026, 4, 27, 12));
+    final clock = TestClock(DateTime.utc(2026, 5, 2, 12));
     final engine = WorkoutEngine(
       config: const WorkoutConfig(
         presetId: 'boxing',
@@ -201,13 +200,15 @@ void main() {
     expect(engine.state.phase, WorkoutPhase.rest);
     audio.playLog.clear();
 
-    // Single tick at rest-entry should already cross the 12s remaining
-    // threshold (rest is only 5s long).
-    clock.advance(const Duration(milliseconds: 100));
-    engine.debugTick();
-    expect(_count(audio.playLog, WorkoutEngine.cueWoodClack), 1,
-        reason: 'rest block, regardless of duration, is NOT subject to '
-            'the work-suppression rule');
+    // Tick across the entire 5s rest in fine increments — the gate
+    // returns false at duration ≤30s, so nothing should fire.
+    for (int i = 0; i < 12; i++) {
+      clock.advance(const Duration(milliseconds: 500));
+      engine.debugTick();
+    }
+    expect(_count(audio.playLog, WorkoutEngine.cueWoodClack), 0,
+        reason: '5s rest (≤30s) suppresses wood_clack under the '
+            '5/2/26 rule');
   });
 
   // Sanity check that the helper shape matches expectations — guards
