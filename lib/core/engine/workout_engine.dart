@@ -199,16 +199,41 @@ class WorkoutEngine extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// DEV-ONLY: force-advance past the current phase.
+  /// Force-advance past the current phase.
   void skipPhase() {
+    // Stage 2.2G Issue B: pause+SKIP must be no-op. User locked —
+    // tapping SKIP while paused does nothing (silent, no phase
+    // advance, no cue, no state change). Engine guard is the
+    // single source of truth; the UI button intentionally remains
+    // visually active when paused.
+    if (_isPaused) return;
+
     if (!_isStarted || _phase == WorkoutPhase.complete) return;
-    if (_phase == WorkoutPhase.work) {
+
+    final wasInWork = _phase == WorkoutPhase.work;
+
+    if (wasInWork) {
       // Stage 2.2E.3: skip from work fires bell_end so the
       // user hears a natural round-end on manual skip.
       // Idempotent via _firedCuesThisPeriod gate.
       _fireCueOnce(cueBellEnd);
     }
+
     _advanceFromCurrentPhase();
+
+    // Stage 2.2G Issue A: skip-INTO-work fires bell_start for
+    // non-Tabata blocks. Tabata work-entry already fires
+    // whistle_long via _advanceToPhase's on-boundary cue path —
+    // adding bell_start there would double-cue. Boxing's bell_start
+    // normally fires via _pollState's 1s-early gate (commit
+    // fb32a4b), which skip bypasses. This restores symmetry:
+    // skip-from-work fires bell_end, skip-into-work fires
+    // bell_start (non-Tabata only).
+    if (_phase == WorkoutPhase.work &&
+        _currentBlockType != WorkoutBlockType.tabata) {
+      _fireCueOnce(cueBellStart);
+    }
+
     notifyListeners();
   }
 

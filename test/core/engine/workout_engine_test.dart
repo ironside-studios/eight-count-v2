@@ -199,6 +199,42 @@ void main() {
         reason: 'whistle_long is Smoker-only');
   });
 
+  test('skipPhase while paused is no-op (silent + no phase advance)', () {
+    // Stage 2.2G Issue B regression guard. pause+SKIP race: prior
+    // behavior advanced the phase under the user, with bell_end
+    // firing intermittently depending on whether the pre-pause
+    // phase was work or rest. Engine guard now refuses to skip
+    // while paused — entirely silent + no state change.
+    engine.start();
+    clock.advance(const Duration(seconds: 45));
+    engine.debugTick(); // → work R1
+
+    expect(engine.state.phase, WorkoutPhase.work);
+    expect(engine.state.currentRound, 1);
+    audio.playedCues.clear();
+
+    engine.pause();
+    expect(engine.state.isPaused, isTrue);
+
+    final prePhase = engine.state.phase;
+    final preRound = engine.state.currentRound;
+    final prePhaseRemaining = engine.state.phaseRemaining;
+    final preCueCount = audio.playedCues.length;
+
+    engine.skipPhase();
+
+    expect(engine.state.phase, prePhase,
+        reason: 'pause+SKIP must not advance phase');
+    expect(engine.state.currentRound, preRound,
+        reason: 'pause+SKIP must not advance round');
+    expect(engine.state.phaseRemaining, prePhaseRemaining,
+        reason: 'pause+SKIP must not mutate phase-remaining anchor');
+    expect(audio.playedCues.length, preCueCount,
+        reason: 'pause+SKIP must fire no audio cue');
+    expect(engine.state.isPaused, isTrue,
+        reason: 'pause+SKIP must leave engine still paused');
+  });
+
   test('skipPhase() during rest of round N advances to work of round N+1', () {
     engine.start();
     clock.advance(const Duration(seconds: 45));

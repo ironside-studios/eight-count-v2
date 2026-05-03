@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 import 'core/router/app_router.dart';
 import 'core/services/audio_service.dart';
 import 'core/services/locale_service.dart';
@@ -31,10 +34,49 @@ Future<void> main() async {
   runApp(EightCountApp(audioService: audioService));
 }
 
-class EightCountApp extends StatelessWidget {
+class EightCountApp extends StatefulWidget {
   const EightCountApp({super.key, required this.audioService});
 
   final AudioService audioService;
+
+  @override
+  State<EightCountApp> createState() => _EightCountAppState();
+}
+
+class _EightCountAppState extends State<EightCountApp>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    // Stage 2.2G Issue C: app-wide wakelock. Screen stays lit while
+    // the app is foregrounded — every screen, paused or running.
+    // Toggled via [didChangeAppLifecycleState] on background/foreground
+    // transitions; released in [dispose] on app teardown.
+    unawaited(WakelockPlus.enable());
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    unawaited(WakelockPlus.disable());
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    switch (state) {
+      case AppLifecycleState.resumed:
+        unawaited(WakelockPlus.enable());
+        break;
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.paused:
+      case AppLifecycleState.detached:
+      case AppLifecycleState.hidden:
+        unawaited(WakelockPlus.disable());
+        break;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

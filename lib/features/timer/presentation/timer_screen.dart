@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:wakelock_plus/wakelock_plus.dart';
 
 import 'package:eight_count/core/design/phase_colors.dart';
 import 'package:eight_count/core/engine/workout_engine.dart';
@@ -188,10 +187,9 @@ class _TimerScreenState extends State<TimerScreen> {
   @override
   void initState() {
     super.initState();
-    // Keep the screen awake during a workout. Sleeping mid-round = broken
-    // timer + missed cues. Failure is swallowed via catchError so wakelock
-    // can never crash the flow.
-    unawaited(_safeWakelock(enable: true));
+    // Wakelock is now app-wide (Stage 2.2G Issue C — see main.dart's
+    // EightCountApp lifecycle observer). Per-screen wakelock control
+    // was retired here.
     Object? config;
     if (widget.overrideConfig != null) {
       // Custom-preset route (and any future caller) passes a fully-built
@@ -493,26 +491,7 @@ class _TimerScreenState extends State<TimerScreen> {
       engine.removeListener(_onEngineChange);
       engine.dispose();
     }
-    // Release the wakelock so the home screen's normal system timeout
-    // resumes. dispose() is sync; fire-and-forget with try/catch inside.
-    unawaited(_safeWakelock(enable: false));
     super.dispose();
-  }
-
-  /// Toggles the system wakelock with try/catch so platform errors never
-  /// bubble into the workout flow. Log-only on failure via debugPrint.
-  Future<void> _safeWakelock({required bool enable}) async {
-    try {
-      if (enable) {
-        await WakelockPlus.enable();
-      } else {
-        await WakelockPlus.disable();
-      }
-    } catch (e) {
-      debugPrint(
-        'WakelockPlus.${enable ? 'enable' : 'disable'} failed: $e',
-      );
-    }
   }
 
   /// SKIP advances the engine to the next phase. Stage 2.2F promoted
