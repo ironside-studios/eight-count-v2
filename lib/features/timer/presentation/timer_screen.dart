@@ -535,6 +535,26 @@ class _TimerScreenState extends State<TimerScreen> {
     }
   }
 
+  /// Stage 2.2I — pause overlay. Sits between the workout content
+  /// (Layer 1) and the action button row (Layer 3) in the timer-body
+  /// Stack. Fades to 55% black on engine.state.isPaused = true and
+  /// back to transparent on resume, both over 200ms easeInOut.
+  /// IgnorePointer keeps the overlay non-interactive — taps pass
+  /// through to Layer 1's GestureDetector (a no-op when started)
+  /// without being absorbed by the dim layer.
+  Widget _buildPauseOverlay() {
+    final bool isPaused = _engine?.state.isPaused ?? false;
+    return IgnorePointer(
+      ignoring: true,
+      child: AnimatedOpacity(
+        opacity: isPaused ? 0.55 : 0.0,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeInOut,
+        child: Container(color: Colors.black),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
@@ -656,169 +676,242 @@ class _TimerScreenState extends State<TimerScreen> {
                   ? 0
                   : rawTotalRemainingSec.clamp(0, 9999);
 
+              // Stage 2.2I: 3-layer Stack — workout content (Layer 1)
+              // dims under the pause overlay (Layer 2); the action button
+              // row (Layer 3) sits above the overlay and stays full
+              // brightness + tappable. Layer 1 has the button row
+              // replaced with a Visibility(maintainSize) placeholder so
+              // its layout is preserved bit-for-bit; Layer 3 is a
+              // parallel Column with the inverse — every non-button
+              // widget is the same Visibility-hidden placeholder, the
+              // button row is the only thing that renders.
+              Widget invisibleBox(Widget child) => Visibility(
+                    visible: false,
+                    maintainSize: true,
+                    maintainAnimation: true,
+                    maintainState: true,
+                    child: child,
+                  );
+
+              // Built once and shared between Layer 1 (where it's
+              // hidden via invisibleBox) and Layer 3 (where it renders
+              // for real). Ensures both layers compute identical sizes
+              // for layout matching.
+              final Widget buttonRow = Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _TimerActionButton(
+                    label:
+                        isPaused ? l10n.resumeButton : l10n.pauseButton,
+                    isPrimary: true,
+                    width: 100,
+                    onTap: _handlePauseResume,
+                  ),
+                  const SizedBox(width: 16),
+                  _TimerActionButton(
+                    label: l10n.stopButton,
+                    isPrimary: false,
+                    width: 100,
+                    onTap: _handleStop,
+                  ),
+                  const SizedBox(width: 16),
+                  _TimerActionButton(
+                    label: l10n.skipButton,
+                    isPrimary: false,
+                    width: 100,
+                    onTap: _handleSkip,
+                  ),
+                ],
+              );
+
+              // Dimmable content widgets. Built once per frame; rendered
+              // for real in Layer 1 and as Visibility-hidden placeholders
+              // in Layer 3 so position math matches.
+              final Widget? blockLabelW = showBlockLabel
+                  ? BlockLabel(
+                      currentBlockIndex: currentBlockIndex,
+                      blockType: blockType,
+                      totalContentBlocks: totalContentBlocks,
+                    )
+                  : null;
+
+              final bool showCustomHeader =
+                  phase == WorkoutPhase.preCountdown &&
+                      widget.customHeader != null;
+              final Widget? customHeaderW = showCustomHeader
+                  ? Text(
+                      widget.customHeader!.toUpperCase(),
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.bebasNeue(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFFD4A017),
+                        letterSpacing: 2,
+                      ),
+                    )
+                  : null;
+              final bool showCustomSubtitle =
+                  showCustomHeader && widget.customSubtitle != null;
+              final Widget? customSubtitleW = showCustomSubtitle
+                  ? Text(
+                      widget.customSubtitle!,
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        color: const Color(0xFF8A8A8A),
+                      ),
+                    )
+                  : null;
+
+              final Widget? phaseLabelW = showPhaseLabel
+                  ? Text(
+                      phaseLabel,
+                      style: GoogleFonts.bebasNeue(
+                        fontSize: 52,
+                        fontWeight: FontWeight.w700,
+                        color: phaseColor,
+                        letterSpacing: 3,
+                      ),
+                    )
+                  : null;
+
+              final Widget ringW = SizedBox(
+                width: 380,
+                height: 380,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    CustomPaint(
+                      size: const Size(380, 380),
+                      painter: _CountdownRingPainter(
+                        progress: progress,
+                        arcColor: phaseColor,
+                        trackColor: const Color(0x1AF5C518),
+                        strokeWidth: 6,
+                      ),
+                    ),
+                    Text(
+                      digitText,
+                      style: GoogleFonts.bebasNeue(
+                        fontSize: 220,
+                        fontWeight: FontWeight.w700,
+                        color: digitColor,
+                        letterSpacing: 0,
+                        height: 1.0,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+
+              final Widget tapToStartW = Text(
+                l10n.tapToStartHint,
+                style: GoogleFonts.inter(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w400,
+                  color: const Color(0xFF8A8A8A),
+                  letterSpacing: 4,
+                ),
+              );
+
+              final Widget? totalCardW = showTotalCard
+                  ? Padding(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 16),
+                      child: _TotalTimeCard(
+                        label: l10n.totalTimeCardLabel,
+                        remainingTotalSeconds: totalRemainingSec,
+                      ),
+                    )
+                  : null;
+
               return Stack(
                 children: [
-                  // Ring + digit + bottom section wrapped in a tap target so
-                  // only the pre-tap idle state responds (buttons sit above).
+                  // Layer 1: workout content (dimmed under overlay).
+                  // Same Spacer-flex layout as before; the button row
+                  // slot is replaced by a Visibility-hidden placeholder
+                  // so the Column's vertical math is unchanged.
                   GestureDetector(
                     onTap: _started ? null : _handleStartTap,
                     behavior: HitTestBehavior.opaque,
-                    // Fill the SafeArea so Spacers can distribute slack
-                    // vertically. With BlockLabel added in Smoker mode,
-                    // the prior Center+min-height column overflowed
-                    // ~50px on S23 Ultra; flexing top/middle/bottom
-                    // spacers keeps the same visual rhythm at any
-                    // viewport height.
                     child: Column(
                       mainAxisSize: MainAxisSize.max,
                       children: [
                         const Spacer(flex: 1),
-                        if (showBlockLabel) ...[
-                          BlockLabel(
-                            currentBlockIndex: currentBlockIndex,
-                            blockType: blockType,
-                            totalContentBlocks: totalContentBlocks,
-                          ),
+                        if (blockLabelW != null) ...[
+                          blockLabelW,
                           const SizedBox(height: 8),
                         ],
-                        // Custom-only: slot name + workout summary
-                        // shown above the GET READY label during
-                        // preCountdown. Hidden once the workout begins
-                        // (active screen stays clean per spec). Null
-                        // for Boxing/Smoker.
-                        if (phase == WorkoutPhase.preCountdown &&
-                            widget.customHeader != null) ...[
-                          Text(
-                            widget.customHeader!.toUpperCase(),
-                            textAlign: TextAlign.center,
-                            style: GoogleFonts.bebasNeue(
-                              fontSize: 24,
-                              fontWeight: FontWeight.w700,
-                              color: const Color(0xFFD4A017),
-                              letterSpacing: 2,
-                            ),
-                          ),
-                          if (widget.customSubtitle != null) ...[
+                        if (customHeaderW != null) ...[
+                          customHeaderW,
+                          if (customSubtitleW != null) ...[
                             const SizedBox(height: 4),
-                            Text(
-                              widget.customSubtitle!,
-                              textAlign: TextAlign.center,
-                              style: GoogleFonts.inter(
-                                fontSize: 13,
-                                color: const Color(0xFF8A8A8A),
-                              ),
-                            ),
+                            customSubtitleW,
                           ],
                           const SizedBox(height: 12),
                         ],
-                        if (showPhaseLabel) ...[
-                          Text(
-                            phaseLabel,
-                            style: GoogleFonts.bebasNeue(
-                              fontSize: 52,
-                              fontWeight: FontWeight.w700,
-                              color: phaseColor,
-                              letterSpacing: 3,
-                            ),
-                          ),
+                        if (phaseLabelW != null) ...[
+                          phaseLabelW,
                           const SizedBox(height: 16),
                         ],
-                        SizedBox(
-                          width: 380,
-                          height: 380,
-                          child: Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              CustomPaint(
-                                size: const Size(380, 380),
-                                painter: _CountdownRingPainter(
-                                  progress: progress,
-                                  arcColor: phaseColor,
-                                  trackColor: const Color(0x1AF5C518),
-                                  strokeWidth: 6,
-                                ),
-                              ),
-                              Text(
-                                digitText,
-                                style: GoogleFonts.bebasNeue(
-                                  fontSize: 220,
-                                  fontWeight: FontWeight.w700,
-                                  color: digitColor,
-                                  letterSpacing: 0,
-                                  height: 1.0,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+                        ringW,
                         const Spacer(flex: 1),
                         if (!_started)
-                          Text(
-                            l10n.tapToStartHint,
-                            style: GoogleFonts.inter(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w400,
-                              color: const Color(0xFF8A8A8A),
-                              letterSpacing: 4,
-                            ),
-                          )
+                          tapToStartW
                         else
-                          // Button row: PAUSE/RESUME + STOP + SKIP, all
-                          // 100×56 in release. Total 100*3 + 16*2 = 332dp,
-                          // fits S23's 411dp logical width with margin.
-                          // (Stage 2.2F promoted SKIP from debug-only to
-                          // release; widths unified at 100dp.)
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              _TimerActionButton(
-                                label: isPaused
-                                    ? l10n.resumeButton
-                                    : l10n.pauseButton,
-                                isPrimary: true,
-                                width: 100,
-                                onTap: _handlePauseResume,
-                              ),
-                              const SizedBox(width: 16),
-                              _TimerActionButton(
-                                label: l10n.stopButton,
-                                isPrimary: false,
-                                width: 100,
-                                onTap: _handleStop,
-                              ),
-                              const SizedBox(width: 16),
-                              _TimerActionButton(
-                                label: l10n.skipButton,
-                                isPrimary: false,
-                                width: 100,
-                                onTap: _handleSkip,
-                              ),
-                            ],
-                          ),
-                        if (showTotalCard) ...[
+                          // Placeholder — real button row lives in Layer 3.
+                          invisibleBox(buttonRow),
+                        if (totalCardW != null) ...[
                           const SizedBox(height: 16),
-                          Padding(
-                            padding:
-                                const EdgeInsets.symmetric(horizontal: 16),
-                            child: _TotalTimeCard(
-                              label: l10n.totalTimeCardLabel,
-                              remainingTotalSeconds: totalRemainingSec,
-                            ),
-                          ),
+                          totalCardW,
                         ],
                         const Spacer(flex: 1),
                       ],
                     ),
                   ),
-                  // Dim overlay — sits above the ring/digit, below the buttons.
-                  // IgnorePointer keeps the underlying GestureDetector AND the
-                  // button row tappable (buttons render in the GestureDetector's
-                  // column above and aren't covered).
-                  if (isPaused)
-                    const Positioned.fill(
-                      child: IgnorePointer(
-                        child: ColoredBox(color: Color(0x99000000)),
-                      ),
+
+                  // Layer 2: pause overlay. Animates between transparent
+                  // and 55% black on engine.state.isPaused changes.
+                  Positioned.fill(child: _buildPauseOverlay()),
+
+                  // Layer 3: action button row, full brightness above
+                  // the overlay. Parallel Column with the same Spacer
+                  // structure and identically-sized hidden placeholders
+                  // so the button row lands at the same Y as the
+                  // placeholder in Layer 1. Only rendered post-start
+                  // (the tapToStartHint phase has no buttons).
+                  if (_started)
+                    Column(
+                      mainAxisSize: MainAxisSize.max,
+                      children: [
+                        const Spacer(flex: 1),
+                        if (blockLabelW != null) ...[
+                          invisibleBox(blockLabelW),
+                          const SizedBox(height: 8),
+                        ],
+                        if (customHeaderW != null) ...[
+                          invisibleBox(customHeaderW),
+                          if (customSubtitleW != null) ...[
+                            const SizedBox(height: 4),
+                            invisibleBox(customSubtitleW),
+                          ],
+                          const SizedBox(height: 12),
+                        ],
+                        if (phaseLabelW != null) ...[
+                          invisibleBox(phaseLabelW),
+                          const SizedBox(height: 16),
+                        ],
+                        invisibleBox(ringW),
+                        const Spacer(flex: 1),
+                        // Real button row — sits above the overlay,
+                        // stays full-bright + tappable through pause.
+                        buttonRow,
+                        if (totalCardW != null) ...[
+                          const SizedBox(height: 16),
+                          invisibleBox(totalCardW),
+                        ],
+                        const Spacer(flex: 1),
+                      ],
                     ),
                 ],
               );
