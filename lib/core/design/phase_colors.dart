@@ -9,9 +9,10 @@ const Color phaseColorPreCountdown = Color(0xFFF5C518); // gold (brand accent)
 const Color phaseColorWork = Color(0xFF16A34A); // green-600
 const Color phaseColorRest = Color(0xFFDC2626); // red-600
 
-/// Accent color for the given workout phase. [WorkoutPhase.complete] falls
-/// back to gold because the timer screen pops to the complete screen the
-/// moment the phase transitions — this value should never actually paint.
+/// Accent color for the given workout phase. [WorkoutPhase.complete] now
+/// renders red (same as rest) because the timer screen holds on the ":00"
+/// frame for ~1s after the final bell before routing to /complete — that
+/// frame should read as "workout finished / stop", not "get ready".
 Color colorForPhase(WorkoutPhase phase) {
   switch (phase) {
     case WorkoutPhase.preCountdown:
@@ -21,7 +22,7 @@ Color colorForPhase(WorkoutPhase phase) {
     case WorkoutPhase.rest:
       return phaseColorRest;
     case WorkoutPhase.complete:
-      return phaseColorPreCountdown;
+      return phaseColorRest;
   }
 }
 

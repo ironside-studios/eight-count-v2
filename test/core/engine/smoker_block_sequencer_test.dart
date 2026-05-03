@@ -58,40 +58,53 @@ void main() {
 
   /// Fast-forward through a Boxing-block round that is NOT the last round
   /// of its block: 180s work (with wood_clack at 11s remaining + bell_end
-  /// at expiry) → 60s rest (with wood_clack + transition).
+  /// at expiry) → 60s rest (with wood_clack + transition). Two-step pattern
+  /// per phase so the 1s-early bell gate (_pollState window at remainingMs
+  /// in (0, 1000ms]) actually samples the cue.
   void runBoxingFullRound() {
-    advanceAndTick(const Duration(seconds: 180)); // → rest
-    advanceAndTick(const Duration(seconds: 60)); // → next work
+    advanceAndTick(const Duration(seconds: 179)); // work → remainingMs=1000 (bell_end fires)
+    advanceAndTick(const Duration(seconds: 1)); // → rest
+    advanceAndTick(const Duration(seconds: 59)); // rest → remainingMs=1000 (bell_start fires)
+    advanceAndTick(const Duration(seconds: 1)); // → next work
   }
 
   /// Fast-forward through a Boxing block's LAST round (no intra-block rest;
   /// transitions to the trailing transition rest phase).
   void runBoxingLastRoundWork() {
-    advanceAndTick(const Duration(seconds: 180));
+    advanceAndTick(const Duration(seconds: 179)); // remainingMs=1000 (bell_end fires)
+    advanceAndTick(const Duration(seconds: 1)); // → transition rest
   }
 
   /// Fast-forward through a Tabata round that is NOT the last round of its
   /// block: 20s work → 10s rest → next work.
   void runTabataFullRound() {
-    advanceAndTick(const Duration(seconds: 20));
-    advanceAndTick(const Duration(seconds: 10));
+    advanceAndTick(const Duration(seconds: 19)); // work → remainingMs=1000
+    advanceAndTick(const Duration(seconds: 1)); // → rest
+    advanceAndTick(const Duration(seconds: 9)); // rest → remainingMs=1000
+    advanceAndTick(const Duration(seconds: 1)); // → next work (whistle_long fires on entry)
   }
 
   /// Fast-forward through a Tabata block's LAST round (no intra-block rest).
   void runTabataLastRoundWork() {
-    advanceAndTick(const Duration(seconds: 20));
+    advanceAndTick(const Duration(seconds: 19)); // remainingMs=1000 (bell_end fires)
+    advanceAndTick(const Duration(seconds: 1)); // → next phase
   }
 
   /// Fast-forward through the 60s transition rest, expiring it onto the
-  /// next block's first work entry.
+  /// next block's first work entry. Two-step so any cue at the boundary
+  /// lands inside the 1s-early gate window.
   void completeTransition() {
-    advanceAndTick(const Duration(seconds: 60));
+    advanceAndTick(const Duration(seconds: 59)); // remainingMs=1000
+    advanceAndTick(const Duration(seconds: 1)); // → next block work-entry
   }
 
   /// Run preCountdown to expiry, landing on Block 1 round 1 work-entry.
+  /// Two-step so bell_start fires via the 1s-early gate at preCountdown
+  /// remainingMs=1000, before the phase advances to work.
   void runPreCountdownToBlock1() {
     engine.start();
-    advanceAndTick(const Duration(seconds: 45));
+    advanceAndTick(const Duration(seconds: 44)); // remainingMs=1000 (bell_start fires)
+    advanceAndTick(const Duration(seconds: 1)); // → work R1
     expect(engine.state.phase, WorkoutPhase.work);
     expect(engine.state.blockType, WorkoutBlockType.boxing);
     expect(engine.state.currentBlockIndex, 1);
@@ -171,13 +184,16 @@ void main() {
         reason: 'work-entry fires bell_start');
     expect(_count(audio.playLog, WorkoutEngine.cueBellStart), 1);
 
-    // Cross 11s threshold inside work (elapsed=169s).
+    // Cross 11s threshold inside work (elapsed=169s, remain=11s).
     advanceAndTick(const Duration(seconds: 169));
-    expect(_count(audio.playLog, WorkoutEngine.cueWoodClack), 1,
-        reason: 'work-side wood_clack fires at 11s remaining');
+    expect(_count(audio.playLog, WorkoutEngine.cueWoodClack), 2,
+        reason: 'preCountdown clack (helper-side, commit 2975b5c) + '
+            'in-work clack at 11s remaining of R1 work = 2 total');
 
-    // Expire work — fires bell_end and advances to rest.
-    advanceAndTick(const Duration(seconds: 11));
+    // Expire work — bell_end fires via 1s-early gate at remain=1000ms,
+    // then phase advances at remain=0 (commit fb33b4f / fb32a4b).
+    advanceAndTick(const Duration(seconds: 10));
+    advanceAndTick(const Duration(seconds: 1));
     expect(engine.state.phase, WorkoutPhase.rest);
     expect(_count(audio.playLog, WorkoutEngine.cueBellEnd), 1,
         reason: 'work-exit fires bell_end on Boxing block');
@@ -188,10 +204,10 @@ void main() {
     expect(audio.playLog.last, WorkoutEngine.cueBellEnd,
         reason: 'rest-entry is silent on Boxing block');
 
-    // Cross 11s threshold inside rest (elapsed=49s).
+    // Cross 11s threshold inside rest (elapsed=49s, remain=11s).
     advanceAndTick(const Duration(seconds: 49));
-    expect(_count(audio.playLog, WorkoutEngine.cueWoodClack), 2,
-        reason: 'rest-side wood_clack fires at 11s remaining');
+    expect(_count(audio.playLog, WorkoutEngine.cueWoodClack), 3,
+        reason: 'preCountdown + work-side + rest-side = 3 total');
     expect(audio.playLog.length, preRestLogLen + 1,
         reason: 'only the wood_clack was added during the rest period so far');
   });
@@ -212,8 +228,10 @@ void main() {
     expect(engine.state.currentRound, 6);
     final beforeR6Exit = audio.playLog.length;
 
-    // Round 6 work expires → bell_end + advance to transition rest.
-    advanceAndTick(const Duration(seconds: 180));
+    // Round 6 work expires → bell_end fires via 1s-early gate at
+    // remain=1000ms, then phase advances to transition rest.
+    advanceAndTick(const Duration(seconds: 179));
+    advanceAndTick(const Duration(seconds: 1));
     expect(engine.state.phase, WorkoutPhase.rest);
     expect(engine.state.blockType, WorkoutBlockType.transition);
 
@@ -269,8 +287,11 @@ void main() {
   // 6. & 7. Block 2 R1 work-end (silent) + rest-entry (whistle_long, no clack)
   // --------------------------------------------------------------------
 
-  test('Block 2 R1 work-end: SILENT (no bell_end), then rest-entry fires '
-      'whistle_long, no wood_clack during 10s rest', () {
+  test('Block 2 R1 work-exit fires whistle_double (NOT bell_end, NOT '
+      'whistle_long); rest-entry is silent; no wood_clack during 10s rest', () {
+    // V2 compromise retired Stage 2.2D — Tabata round-end signal is now
+    // whistle_double on work-exit (commit 506f777, line 626 of
+    // workout_engine.dart) for R1..R{N-1}; rest-entry is silent (line 719+).
     runPreCountdownToBlock1();
     for (int i = 0; i < 5; i++) {
       runBoxingFullRound();
@@ -280,23 +301,34 @@ void main() {
 
     expect(engine.state.phase, WorkoutPhase.work);
     expect(engine.state.blockType, WorkoutBlockType.tabata);
-    final whistlesBeforeWorkExit =
+    final whistleDoublesBeforeWorkExit =
+        _count(audio.playLog, WorkoutEngine.cueWhistleDouble);
+    final whistleLongsBeforeWorkExit =
         _count(audio.playLog, WorkoutEngine.cueWhistleLong);
     final bellEndsBeforeWorkExit =
         _count(audio.playLog, WorkoutEngine.cueBellEnd);
 
-    // Expire 20s work → must NOT fire bell_end. Then rest-entry fires
-    // whistle_long.
+    // Expire 20s work → fires whistle_double on the work→rest boundary
+    // (R1 of B2 is non-final, so engine routes to whistle_double, not
+    // bell_end).
     advanceAndTick(const Duration(seconds: 20));
     expect(engine.state.phase, WorkoutPhase.rest);
     expect(_count(audio.playLog, WorkoutEngine.cueBellEnd),
         bellEndsBeforeWorkExit,
-        reason: 'Tabata work-exit is silent — no bell_end');
+        reason: 'R1 (non-final round) Tabata work-exit must NOT fire bell_end');
+    expect(
+      _count(audio.playLog, WorkoutEngine.cueWhistleDouble) -
+          whistleDoublesBeforeWorkExit,
+      1,
+      reason: 'work-exit fires whistle_double (locked behavior, '
+          'commit 506f777, retires V2 single-whistle compromise)',
+    );
     expect(
       _count(audio.playLog, WorkoutEngine.cueWhistleLong) -
-          whistlesBeforeWorkExit,
-      1,
-      reason: 'rest-entry fires whistle_long (V2 single-whistle compromise)',
+          whistleLongsBeforeWorkExit,
+      0,
+      reason: 'whistle_long is reserved for Tabata work-START, not '
+          'rest-entry (V2 compromise retired Stage 2.2D)',
     );
 
     // Run the entire 10s rest; no wood_clack should fire.
@@ -416,11 +448,13 @@ void main() {
   });
 
   // --------------------------------------------------------------------
-  // 10. Block 4 R8 → complete (bell_end fires on complete-entry)
+  // 10. Block 4 R8 → complete (bell_end fires 1s-early via option-b
+  //     shift; complete-entry is silent)
   // --------------------------------------------------------------------
 
-  test('Block 4 R8 work-end → complete: silent work-exit, bell_end on '
-      'complete-entry, no rest after final round', () {
+  test('Block 4 R8 work-end → complete: bell_end fires 1s-early during '
+      'final second of work (NOT on complete-entry); no rest after final '
+      'round', () {
     runPreCountdownToBlock1();
     for (int i = 0; i < 5; i++) {
       runBoxingFullRound();
@@ -449,12 +483,25 @@ void main() {
     final whistlesBefore =
         _count(audio.playLog, WorkoutEngine.cueWhistleLong);
 
-    // Expire B4 R8 work → complete.
-    advanceAndTick(const Duration(seconds: 20));
+    // Drive R8 work to its 1s-early gate window: 19s tick lands at
+    // remainingMs=1000, fires bell_end via option-b shift.
+    advanceAndTick(const Duration(seconds: 19));
+    expect(engine.state.phase, WorkoutPhase.work,
+        reason: 'still in R8 work after 19s; phase advances at 20s');
+    expect(_count(audio.playLog, WorkoutEngine.cueBellEnd) - bellEndsBefore,
+        1,
+        reason: 'R8 (last round) fires bell_end 1s-early via option-b '
+            'shift, in WORK phase (not on complete-entry)');
+
+    // Final 1s tick → remainingMs=0 → phase advances to complete.
+    // Complete-entry must NOT fire a second bell_end (playCompletionCue:
+    // false is set in the Smoker last-block path).
+    advanceAndTick(const Duration(seconds: 1));
     expect(engine.state.phase, WorkoutPhase.complete);
     expect(_count(audio.playLog, WorkoutEngine.cueBellEnd) - bellEndsBefore,
         1,
-        reason: 'complete-entry fires exactly one bell_end');
+        reason: 'no double-bell — complete-entry stays silent because '
+            'bell_end already fired 1s-early during work');
     expect(
       _count(audio.playLog, WorkoutEngine.cueWhistleLong) - whistlesBefore,
       0,
@@ -466,8 +513,8 @@ void main() {
   // 11. Total cue counts for full Smoker flow
   // --------------------------------------------------------------------
 
-  test('Full Smoker flow cue totals: 12 bell_start, 13 bell_end, '
-      '30 whistle_long, 25 wood_clack', () {
+  test('Full Smoker flow cue totals: 12 bell_start, 14 bell_end, '
+      '16 whistle_long, 26 wood_clack', () {
     runPreCountdownToBlock1();
 
     // Block 1
@@ -500,14 +547,20 @@ void main() {
     expect(engine.state.phase, WorkoutPhase.complete);
     expect(_count(audio.playLog, WorkoutEngine.cueBellStart), 12,
         reason: '6 B1 + 6 B3 work-entries');
-    expect(_count(audio.playLog, WorkoutEngine.cueBellEnd), 13,
-        reason: '6 B1 + 6 B3 work-exits + 1 complete-entry');
-    expect(_count(audio.playLog, WorkoutEngine.cueWhistleLong), 30,
-        reason: '8 work-entries × 2 Tabata blocks (16) + '
-            '7 rest-entries × 2 Tabata blocks (14) = 30');
-    expect(_count(audio.playLog, WorkoutEngine.cueWoodClack), 25,
-        reason: '(6 work + 5 rest) × 2 Boxing blocks = 22, '
-            '+ 3 transitions = 25');
+    expect(_count(audio.playLog, WorkoutEngine.cueBellEnd), 14,
+        reason: '6 B1 work-exits + 6 B3 work-exits + '
+            '1 Tabata R8 work-exit (B2) + '
+            '1 Tabata R8 work-exit (B4 → complete, playCompletionCue=false '
+            'so no double-bell on complete-entry) = 14 '
+            '(commit 0db6db0 — Tabata R8 bell shift)');
+    expect(_count(audio.playLog, WorkoutEngine.cueWhistleLong), 16,
+        reason: '8 Tabata work-entries × 2 Tabata blocks = 16; '
+            'rest-entries are silent (V2 compromise retired Stage 2.2D, '
+            'commit 506f777)');
+    expect(_count(audio.playLog, WorkoutEngine.cueWoodClack), 26,
+        reason: '1 preCountdown clack + (6 work + 5 rest) × 2 Boxing '
+            'blocks = 22 + 3 transitions = 26 '
+            '(commit 2975b5c — preCountdown clack at 12s remaining)');
   });
 
   // --------------------------------------------------------------------
@@ -625,32 +678,46 @@ void main() {
     expect(boxingEngine.state.currentBlockIndex, isNull,
         reason: 'non-Smoker configs leave currentBlockIndex null');
 
-    // preCountdown → R1.
-    boxingClock.advance(const Duration(seconds: 45));
+    // preCountdown → R1. Two-step so bell_start fires via 1s-early gate
+    // at remain=1000ms (commit fb32a4b).
+    boxingClock.advance(const Duration(seconds: 44));
+    boxingEngine.debugTick();
+    boxingClock.advance(const Duration(seconds: 1));
     boxingEngine.debugTick();
 
-    // R1 work + rest, R2 work + rest, R3 work → complete.
-    boxingClock.advance(const Duration(seconds: 180));
+    // R1 work + rest, R2 work + rest, R3 work → complete. Each phase
+    // boundary uses two-step (N-1)s + 1s.
+    boxingClock.advance(const Duration(seconds: 179));
     boxingEngine.debugTick();
-    boxingClock.advance(const Duration(seconds: 60));
+    boxingClock.advance(const Duration(seconds: 1));
     boxingEngine.debugTick();
-    boxingClock.advance(const Duration(seconds: 180));
+    boxingClock.advance(const Duration(seconds: 59));
     boxingEngine.debugTick();
-    boxingClock.advance(const Duration(seconds: 60));
+    boxingClock.advance(const Duration(seconds: 1));
     boxingEngine.debugTick();
-    boxingClock.advance(const Duration(seconds: 180));
+    boxingClock.advance(const Duration(seconds: 179));
+    boxingEngine.debugTick();
+    boxingClock.advance(const Duration(seconds: 1));
+    boxingEngine.debugTick();
+    boxingClock.advance(const Duration(seconds: 59));
+    boxingEngine.debugTick();
+    boxingClock.advance(const Duration(seconds: 1));
+    boxingEngine.debugTick();
+    boxingClock.advance(const Duration(seconds: 179));
+    boxingEngine.debugTick();
+    boxingClock.advance(const Duration(seconds: 1));
     boxingEngine.debugTick();
 
     expect(boxingEngine.state.phase, WorkoutPhase.complete);
 
-    // Note: WorkoutConfig.custom uses presetId='custom', not 'boxing', so
-    // wood_clack is suppressed for Custom (Phase 2a scope).
     expect(_count(boxingAudio.playLog, WorkoutEngine.cueBellStart), 3,
         reason: '3 work-entries fire bell_start');
     expect(_count(boxingAudio.playLog, WorkoutEngine.cueBellEnd), 3,
         reason: '3 work-exits fire bell_end (R3 suppresses complete-entry)');
     expect(_count(boxingAudio.playLog, WorkoutEngine.cueWhistleLong), 0);
-    expect(_count(boxingAudio.playLog, WorkoutEngine.cueWoodClack), 0,
-        reason: 'Custom preset suppresses wood_clack (Phase 2a scope)');
+    expect(_count(boxingAudio.playLog, WorkoutEngine.cueWoodClack), 6,
+        reason: 'Custom preset fires wood_clack (commit 901c684 unlock '
+            '— Boxing-parity audio): 1 preCountdown + 3 work + 2 rest '
+            '(no R3 rest) = 6');
   });
 }

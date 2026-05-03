@@ -1,19 +1,20 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:wakelock_plus/wakelock_plus.dart';
 
 import 'package:eight_count/core/design/phase_colors.dart';
 import 'package:eight_count/core/engine/workout_engine.dart';
+import 'package:eight_count/core/models/smoker_config.dart';
+import 'package:eight_count/core/models/workout_block_type.dart';
 import 'package:eight_count/core/models/workout_config.dart';
 import 'package:eight_count/core/models/workout_phase.dart';
 import 'package:eight_count/core/services/audio_service.dart';
 import 'package:eight_count/core/utils/time_format.dart';
+import 'package:eight_count/features/timer/presentation/widgets/block_label.dart';
 import 'package:eight_count/generated/l10n/app_localizations.dart';
 import 'package:eight_count/main.dart' show audioService;
 
@@ -39,19 +40,139 @@ import 'package:eight_count/main.dart' show audioService;
 ///   - bell_start on work-phase entry (incl. from preCountdown and rest)
 ///   - bell_end on work-phase EXIT (every round, including final)
 ///   - rest-entry is SILENT (whistle_long is reserved for Smoker)
+
+/// Smoker variant of the "remaining total seconds" calculation. Walks
+/// `config.blocks` once to resolve the engine's current LINEAR position
+/// (a unique index into the block list), then sums every prior block's
+/// full duration plus the partial contribution of the current period.
+///
+/// Why a linear-position resolve: engine state exposes
+/// `(blockType, currentBlockIndex)`, where `currentBlockIndex` tracks the
+/// most-recently-completed CONTENT block per Stage 1's contract. During
+/// a transition, `currentBlockIndex` matches the content block before
+/// the transition — meaning the tuple alone can't distinguish "inside
+/// content block N" from "inside transition AFTER content block N"
+/// without consulting the phase. Resolving to a single integer linearIdx
+/// upfront eliminates that ambiguity for the rest of the loop.
+///
+/// `total` here EXCLUDES the preCountdown to align with
+/// [SmokerConfig.totalDurationSeconds]'s documented contract and with
+/// the WorkoutConfig branch of [_remainingTotalSeconds] (Boxing /
+/// Custom). For V2 standard Smoker this returns 3400s (56:40) at
+/// preCountdown / round 1 work-start — no longer 3445s. The locked
+/// 45s warmup is treated as ceremony, not workout time. Updated
+/// 2026-04-30 alongside the off-by-45 display bug fix that affected
+/// Boxing and Custom too.
+@visibleForTesting
+int remainingTotalSecondsSmoker(
+  SmokerConfig config,
+  WorkoutPhase phase,
+  int currentRound,
+  int phaseRemainingMs, {
+  required int? currentBlockIndex,
+  required WorkoutBlockType? blockType,
+}) {
+  final int totalMs = config.totalDurationSeconds * 1000;
+
+  if (phase == WorkoutPhase.preCountdown) {
+    return (totalMs / 1000).ceil();
+  }
+  if (phase == WorkoutPhase.complete) {
+    return 0;
+  }
+  if (currentBlockIndex == null || blockType == null) {
+    return (totalMs / 1000).ceil();
+  }
+
+  // Resolve the engine's current linear index in config.blocks.
+  int contentSeen = 0;
+  int currentLinearIdx = -1;
+  for (int i = 0; i < config.blocks.length; i++) {
+    final WorkoutBlockType bt = config.blocks[i].blockType;
+    if (bt == WorkoutBlockType.transition) {
+      // Transition AFTER the content block #contentSeen.
+      if (blockType == WorkoutBlockType.transition &&
+          contentSeen == currentBlockIndex) {
+        currentLinearIdx = i;
+        break;
+      }
+    } else {
+      contentSeen++;
+      if (blockType != WorkoutBlockType.transition &&
+          contentSeen == currentBlockIndex) {
+        currentLinearIdx = i;
+        break;
+      }
+    }
+  }
+  if (currentLinearIdx < 0) {
+    // Engine state didn't match any block — safe fallback.
+    return (totalMs / 1000).ceil();
+  }
+
+  int elapsedMs = 0;
+  int globalRoundsConsumed = 0;
+  for (int i = 0; i < currentLinearIdx; i++) {
+    final b = config.blocks[i];
+    if (b.blockType == WorkoutBlockType.transition) {
+      elapsedMs += b.restDuration.inMilliseconds;
+    } else {
+      elapsedMs += b.workDuration.inMilliseconds * b.totalRounds;
+      elapsedMs += b.restDuration.inMilliseconds * (b.totalRounds - 1);
+      globalRoundsConsumed += b.totalRounds;
+    }
+  }
+
+  // Partial contribution of the current block.
+  final current = config.blocks[currentLinearIdx];
+  if (current.blockType == WorkoutBlockType.transition) {
+    elapsedMs += current.restDuration.inMilliseconds - phaseRemainingMs;
+  } else {
+    final int roundInBlock =
+        (currentRound - globalRoundsConsumed).clamp(1, current.totalRounds);
+    final int priorRoundsInBlock = roundInBlock - 1;
+    elapsedMs += priorRoundsInBlock * current.workDuration.inMilliseconds +
+        priorRoundsInBlock * current.restDuration.inMilliseconds;
+    if (phase == WorkoutPhase.work) {
+      elapsedMs += current.workDuration.inMilliseconds - phaseRemainingMs;
+    } else {
+      elapsedMs += current.workDuration.inMilliseconds +
+          (current.restDuration.inMilliseconds - phaseRemainingMs);
+    }
+  }
+
+  final int remainingMs = (totalMs - elapsedMs).clamp(0, totalMs);
+  return (remainingMs / 1000).ceil();
+}
+
 class TimerScreen extends StatefulWidget {
   const TimerScreen({
     super.key,
     required this.presetId,
     this.overrideConfig,
+    this.customHeader,
+    this.customSubtitle,
   });
 
   final String presetId;
 
   /// Optional preset override. When non-null, this config drives the engine
-  /// directly — used by the Custom-preset route (Step 5.2). When null, the
-  /// screen falls back to the original presetId-keyed behaviour (Boxing).
-  final WorkoutConfig? overrideConfig;
+  /// directly — used by the Custom-preset route (Step 5.2) and any future
+  /// caller that wants to bypass the presetId-keyed factory dispatch.
+  /// Accepts [WorkoutConfig] or [SmokerConfig]; the engine validates at
+  /// runtime.
+  final Object? overrideConfig;
+
+  /// Custom-only: optional slot name shown above the GET READY label
+  /// during the preCountdown phase (e.g., "HEAVY BAG"). Hidden after
+  /// the workout begins so the active screen stays clean. Null for
+  /// Boxing/Smoker.
+  final String? customHeader;
+
+  /// Custom-only: optional workout summary line shown below
+  /// [customHeader] during preCountdown (e.g., "5 rounds · 1:30
+  /// work · 0:30 rest"). Null for Boxing/Smoker.
+  final String? customSubtitle;
 
   @override
   State<TimerScreen> createState() => _TimerScreenState();
@@ -61,32 +182,29 @@ class _TimerScreenState extends State<TimerScreen> {
   WorkoutEngine? _engine;
   bool _started = false;
   bool _popped = false;
+  bool _completedNaturally = false;
 
   @override
   void initState() {
     super.initState();
-    // Keep the screen awake during a workout. Sleeping mid-round = broken
-    // timer + missed cues. Failure is swallowed via catchError so wakelock
-    // can never crash the flow.
-    unawaited(_safeWakelock(enable: true));
+    // Wakelock is now app-wide (Stage 2.2G Issue C — see main.dart's
+    // EightCountApp lifecycle observer). Per-screen wakelock control
+    // was retired here.
+    Object? config;
     if (widget.overrideConfig != null) {
-      // Step 5.2: Custom-preset route passes the saved preset's config
-      // directly; no presetId-based lookup. Takes precedence over the
-      // Boxing branch by design (a caller passing both wants the override).
-      _engine = WorkoutEngine(
-        config: widget.overrideConfig!,
-        audio: audioService,
-      );
-      _engine!.addListener(_onEngineChange);
+      // Custom-preset route (and any future caller) passes a fully-built
+      // config directly. Takes precedence over the presetId-keyed factory.
+      config = widget.overrideConfig;
     } else if (widget.presetId == 'boxing') {
-      _engine = WorkoutEngine(
-        config: WorkoutConfig.boxing(),
-        audio: audioService,
-      );
+      config = WorkoutConfig.boxing();
+    } else if (widget.presetId == 'smoker') {
+      config = SmokerConfig.standard();
+    }
+    if (config != null) {
+      _engine = WorkoutEngine(config: config, audio: audioService);
       _engine!.addListener(_onEngineChange);
     } else {
-      // TODO Step 3.2.x: handle smoker/custom presets. For now, bounce home —
-      // these presets are locked/paywalled and should never route here yet.
+      // Unrecognized preset → bounce home rather than render an empty timer.
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && !_popped) {
           _popped = true;
@@ -101,19 +219,27 @@ class _TimerScreenState extends State<TimerScreen> {
     final engine = _engine;
     if (engine == null) return;
     // Natural completion → route to the complete screen (stack replacement).
-    // 50ms delay matches _handleStop so bell_end has a moment to start
-    // playing before the route change. Intermediate transitions
-    // (preCountdown → work, work ↔ rest) stay on this screen; AnimatedBuilder
-    // rebuilds handle the label / ring-color / round-card swaps.
-    if (engine.state.phase == WorkoutPhase.complete) {
+    // Intermediate transitions (preCountdown → work, work ↔ rest) stay on
+    // this screen; AnimatedBuilder rebuilds handle the label / ring-color
+    // / round-card swaps.
+    // Wait for the engine to reach WorkoutPhase.complete naturally, then
+    // hold for 5 seconds on the ":00" screen with the red ring before
+    // routing. This gives the user a deliberate visual closure for the
+    // final round:
+    //   0:02 → 0:01 → BELL FIRES → 0:00 (held 5s, red ring) → /complete
+    //
+    // The bell started 1s before engine-complete (1s-early shift), so by
+    // the time engine reaches complete the bell has been playing ~1s with
+    // ~1.6s of clip remaining. The bell finishes well within the 5s hold;
+    // the remaining ~3.4s is intentional silence holding the red ring on
+    // screen. _completedNaturally tells dispose() to skip stopAll() so
+    // the bell finishes cleanly across the route change.
+    if (!_popped && engine.state.phase == WorkoutPhase.complete) {
       _popped = true;
-      // timer_screen only routes Boxing/Custom configs (Smoker bounces home
-      // in initState); Stage 1 of Phase 2b types engine.config as Object,
-      // so cast back to the WorkoutConfig the helper expects.
-      final int totalSeconds =
-          _totalWorkoutSeconds(engine.config as WorkoutConfig);
+      _completedNaturally = true;
+      final int totalSeconds = _totalWorkoutSeconds(engine.config);
       final String presetId = widget.presetId;
-      Future.delayed(const Duration(milliseconds: 50), () {
+      Future.delayed(const Duration(milliseconds: 5000), () {
         if (!mounted) return;
         context.go(
           '/complete',
@@ -130,26 +256,52 @@ class _TimerScreenState extends State<TimerScreen> {
   /// Full work + rest seconds for the configured workout (no pre-countdown).
   /// Boxing: 180*12 + 60*11 = 2820s = 47:00. Rest count is `totalRounds - 1`
   /// because the final round has no rest (work R12 → complete directly).
-  static int _totalWorkoutSeconds(WorkoutConfig config) {
-    final int workSec = config.workDuration.inSeconds * config.totalRounds;
-    final int restSec =
-        config.restDuration.inSeconds * (config.totalRounds - 1);
-    return workSec + restSec;
+  /// Smoker: sums every block's work + (rounds-1)×rest plus each transition.
+  static int _totalWorkoutSeconds(Object config) {
+    if (config is SmokerConfig) {
+      return config.totalDurationSeconds;
+    }
+    if (config is WorkoutConfig) {
+      final int workSec = config.workDuration.inSeconds * config.totalRounds;
+      final int restSec =
+          config.restDuration.inSeconds * (config.totalRounds - 1);
+      return workSec + restSec;
+    }
+    throw ArgumentError('Unknown config type: ${config.runtimeType}');
   }
 
   /// Remaining seconds on the whole work+rest cycle (pre-countdown excluded),
   /// derived from live engine state — never stored. Ceil'd so the last second
   /// stays on screen through its full tick.
   ///
+  /// Boxing/Custom (single block):
   ///   totalMs       = workMs * N   +  restMs * (N - 1)
   ///   elapsed[work] = (round-1) * (workMs + restMs) + (workMs - phaseRemainingMs)
   ///   elapsed[rest] = (round-1) * (workMs + restMs) + workMs + (restMs - phaseRemainingMs)
+  ///
+  /// Smoker: walks each block's contribution, summing whole completed blocks
+  /// and partially-completed periods up to the current point.
   static int _remainingTotalSeconds(
-    WorkoutConfig config,
+    Object config,
     WorkoutPhase phase,
     int currentRound,
-    int phaseRemainingMs,
-  ) {
+    int phaseRemainingMs, {
+    int? currentBlockIndex,
+    WorkoutBlockType? blockType,
+  }) {
+    if (config is SmokerConfig) {
+      return remainingTotalSecondsSmoker(
+        config,
+        phase,
+        currentRound,
+        phaseRemainingMs,
+        currentBlockIndex: currentBlockIndex,
+        blockType: blockType,
+      );
+    }
+    if (config is! WorkoutConfig) {
+      throw ArgumentError('Unknown config type: ${config.runtimeType}');
+    }
     final int workMs = config.workDuration.inMilliseconds;
     final int restMs = config.restDuration.inMilliseconds;
     final int roundMs = workMs + restMs;
@@ -176,6 +328,42 @@ class _TimerScreenState extends State<TimerScreen> {
     }
     final int remainingMs = (totalMs - elapsedMs).clamp(0, totalMs);
     return (remainingMs / 1000).ceil();
+  }
+
+  /// Block-local round info for the round counter card. For Boxing/Custom,
+  /// returns the engine's global round directly. For Smoker, subtracts prior
+  /// blocks' rounds so the user sees "ROUND 3 OF 8" within Block 2 (Tabata).
+  /// Returns null when no round card should be displayed (preCountdown,
+  /// complete, transition).
+  static ({int current, int total})? _roundForCounter({
+    required Object config,
+    required WorkoutPhase phase,
+    required int currentRound,
+    required int? currentBlockIndex,
+    required WorkoutBlockType? blockType,
+  }) {
+    if (phase != WorkoutPhase.work && phase != WorkoutPhase.rest) {
+      return null;
+    }
+    if (config is SmokerConfig) {
+      if (blockType == WorkoutBlockType.transition) return null;
+      int roundInBlock = currentRound;
+      int totalInBlock = 0;
+      for (final b in config.blocks) {
+        if (b.blockType == WorkoutBlockType.transition) continue;
+        if (roundInBlock <= b.totalRounds) {
+          totalInBlock = b.totalRounds;
+          break;
+        }
+        roundInBlock -= b.totalRounds;
+      }
+      if (totalInBlock == 0) return null;
+      return (current: roundInBlock, total: totalInBlock);
+    }
+    if (config is WorkoutConfig) {
+      return (current: currentRound, total: config.totalRounds);
+    }
+    return null;
   }
 
   void _handleStartTap() {
@@ -289,57 +477,82 @@ class _TimerScreenState extends State<TimerScreen> {
     // after the workout ends. Not awaited — dispose() stays sync; the
     // `_cancelled` flag flips immediately and pending player.stop() calls
     // resolve in the background.
-    unawaited(AudioService.instance.stopAll());
+    // Only stop in-flight audio when the workout did NOT complete naturally.
+    // Natural completion lets bell_end.mp3 finish playing across the route
+    // change to /complete — the user expects to hear the full triple bell
+    // even as the screen transitions. Abandons (STOP→END), app
+    // backgrounding, and navigation away all still hit stopAll() so we
+    // never leak playback onto unrelated screens.
+    if (!_completedNaturally) {
+      unawaited(AudioService.instance.stopAll());
+    }
     final engine = _engine;
     if (engine != null) {
       engine.removeListener(_onEngineChange);
       engine.dispose();
     }
-    // Release the wakelock so the home screen's normal system timeout
-    // resumes. dispose() is sync; fire-and-forget with try/catch inside.
-    unawaited(_safeWakelock(enable: false));
     super.dispose();
   }
 
-  /// Toggles the system wakelock with try/catch so platform errors never
-  /// bubble into the workout flow. Log-only on failure via debugPrint.
-  Future<void> _safeWakelock({required bool enable}) async {
-    try {
-      if (enable) {
-        await WakelockPlus.enable();
-      } else {
-        await WakelockPlus.disable();
-      }
-    } catch (e) {
-      debugPrint(
-        'WakelockPlus.${enable ? 'enable' : 'disable'} failed: $e',
-      );
-    }
-  }
-
-  /// DEV-ONLY: fires only when [kDebugMode] so the SKIP button is tree-shaken
-  /// out of release builds. Calls the locked engine's [skipPhase] — same path
-  /// the engine's own unit tests exercise. Haptic is fired by the button
-  /// widget itself (light-impact variant), same pattern as PAUSE/STOP.
+  /// SKIP advances the engine to the next phase. Stage 2.2F promoted
+  /// this to release builds; Stage 2.2E.3 ensures skipping during work
+  /// fires bell_end so the user hears a natural round-end. The button
+  /// widget fires the haptic itself.
   void _handleSkip() {
-    if (!kDebugMode) return;
     _engine?.skipPhase();
   }
 
   /// Maps the engine's phase to the user-facing label shown above the ring.
-  /// Returns `null` for [WorkoutPhase.complete] — the screen is popping, we
-  /// don't want a celebratory label flashing as the route unwinds.
-  String? _resolvePhaseLabel(WorkoutPhase phase, AppLocalizations l10n) {
+  /// During work/rest the label IS the round counter ("ROUND 1 / 12"); the
+  /// _RoundCard widget below the buttons is gone in this layout. Returns
+  /// `null` for [WorkoutPhase.complete] so the route can unwind silently.
+  /// Falls back to plain phase strings ("WORK", "REST") only when the
+  /// round counter is unavailable (e.g., Smoker transitions).
+  String? _resolvePhaseLabel(
+    WorkoutPhase phase,
+    AppLocalizations l10n,
+    ({int current, int total})? roundForCounter,
+  ) {
     switch (phase) {
       case WorkoutPhase.preCountdown:
         return l10n.phaseGetReady;
       case WorkoutPhase.work:
-        return l10n.phaseWork;
+        return roundForCounter != null
+            ? l10n.roundLabel(
+                roundForCounter.current.toString(),
+                roundForCounter.total.toString(),
+              )
+            : l10n.phaseWork;
       case WorkoutPhase.rest:
-        return l10n.phaseRest;
+        return roundForCounter != null
+            ? l10n.roundLabel(
+                roundForCounter.current.toString(),
+                roundForCounter.total.toString(),
+              )
+            : l10n.phaseRest;
       case WorkoutPhase.complete:
         return null;
     }
+  }
+
+  /// Stage 2.2I — pause overlay. Sits between the workout content
+  /// (Layer 1) and the action button row (Layer 3) in the timer-body
+  /// Stack. Fades to 55% black on engine.state.isPaused = true and
+  /// back to transparent on resume, both over 200ms easeInOut.
+  /// IgnorePointer keeps the overlay non-interactive — taps pass
+  /// through to Layer 1's GestureDetector (a no-op when started)
+  /// without being absorbed by the dim layer.
+  Widget _buildPauseOverlay() {
+    final bool isPaused = _engine?.state.isPaused ?? false;
+    return IgnorePointer(
+      ignoring: true,
+      child: AnimatedOpacity(
+        opacity: isPaused ? 0.55 : 0.0,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeInOut,
+        child: Container(color: Colors.black),
+      ),
+    );
   }
 
   @override
@@ -364,13 +577,31 @@ class _TimerScreenState extends State<TimerScreen> {
               final WorkoutPhase phase =
                   engine?.state.phase ?? WorkoutPhase.preCountdown;
 
+              // Display math: CEIL remaining-ms-to-seconds so each whole second is
+              // visible for its full duration. A 45-second GET READY counts down
+              // visibly: 45 → 44 → ... → 3 → 2 → 1, then the bell fires (engine
+              // reaches 0ms) and the next phase begins at its full duration on
+              // display (e.g., 3:00 for a 180s work round).
+              //
+              // Why ceil over floor: floor would tick from "1" straight to "0",
+              // and the display would sit on "0" for ~1 second before the engine's
+              // remainingMs hit 0 and the bell fired. The user perceives that as
+              // a dead second between phases. With ceil, "1" is the final visible
+              // value, the bell fires as it would tick to "0", and the next phase
+              // takes over the display before "0" is rendered for any meaningful
+              // time.
+              //
+              // Engine timing is unchanged — bell still fires at true 0ms boundary.
+              // Round duration is exact (180s of work, 60s of rest, 45s of get
+              // ready). This is purely a display formula change.
               final int remainingSec = engine == null
                   ? 45
                   : (_started
-                      ? (engine.state.phaseRemaining.inMilliseconds / 1000)
-                          .ceil()
-                          .clamp(0, 9999)
-                          .toInt()
+                      ? () {
+                          final ms = engine.state.phaseRemaining.inMilliseconds;
+                          if (ms <= 0) return 0;
+                          return ((ms + 999) ~/ 1000).clamp(0, 9999);
+                        }()
                       : engine.state.phaseDuration.inSeconds);
 
               // Pre-countdown reads as a hype countdown (raw seconds).
@@ -386,153 +617,301 @@ class _TimerScreenState extends State<TimerScreen> {
                       .clamp(0.0, 1.0);
 
               final Color phaseColor = colorForPhase(phase);
-              // Ring carries phase state; digit + label flip to white during
-              // work/rest for maximum OLED contrast and glance-readability.
+              // Ring + the big digit stay white-on-phase-color; the new
+              // label (round counter) takes its color directly from
+              // colorForPhase so green = work, red = rest, gold = GET READY.
               final Color digitColor = digitColorForPhase(phase);
 
-              final String? phaseLabel = _resolvePhaseLabel(phase, l10n);
+              final int? currentBlockIndex =
+                  engine?.state.currentBlockIndex;
+              final WorkoutBlockType? blockType = engine?.state.blockType;
+              final bool isSmoker = engine?.config is SmokerConfig;
+              final int totalContentBlocks = engine?.config is SmokerConfig
+                  ? (engine!.config as SmokerConfig).totalContentBlocks
+                  : 0;
+              final bool showBlockLabel = _started &&
+                  isSmoker &&
+                  currentBlockIndex != null &&
+                  blockType != null;
+
+              final ({int current, int total})? roundForCounter =
+                  engine == null
+                      ? null
+                      : _roundForCounter(
+                          config: engine.config,
+                          phase: phase,
+                          currentRound: engine.state.currentRound,
+                          currentBlockIndex: currentBlockIndex,
+                          blockType: blockType,
+                        );
+
+              final String? phaseLabel =
+                  _resolvePhaseLabel(phase, l10n, roundForCounter);
               final bool showPhaseLabel = _started && phaseLabel != null;
-              final bool showRoundCard =
-                  engine != null &&
+
+              final bool showTotalCard = engine != null &&
                   (phase == WorkoutPhase.work || phase == WorkoutPhase.rest);
-              final bool showTotalCard = showRoundCard;
+              // TOTAL math contract (2026-04-30): _remainingTotalSeconds()
+              // returns work+rest only (preCountdown excluded) for ALL
+              // configs (Boxing, Custom, Smoker). The historical
+              // subtraction here was double-correcting the WorkoutConfig
+              // branch (already-correct value was reduced by 45s),
+              // shipping all 3 presets with TOTAL displayed 45s low
+              // throughout work/rest. Smoker's underlying function was
+              // updated in the same pass to align with its documented
+              // SmokerConfig.totalDurationSeconds contract. Display now
+              // passes the engine value through directly.
+              int rawTotalRemainingSec = 0;
+              if (engine != null) {
+                rawTotalRemainingSec = _remainingTotalSeconds(
+                  engine.config,
+                  phase,
+                  engine.state.currentRound,
+                  engine.state.phaseRemaining.inMilliseconds,
+                  currentBlockIndex: currentBlockIndex,
+                  blockType: blockType,
+                );
+              }
               final int totalRemainingSec = engine == null
                   ? 0
-                  : _remainingTotalSeconds(
-                      engine.config as WorkoutConfig,
-                      phase,
-                      engine.state.currentRound,
-                      engine.state.phaseRemaining.inMilliseconds,
-                    );
+                  : rawTotalRemainingSec.clamp(0, 9999);
+
+              // Stage 2.2I: 3-layer Stack — workout content (Layer 1)
+              // dims under the pause overlay (Layer 2); the action button
+              // row (Layer 3) sits above the overlay and stays full
+              // brightness + tappable. Layer 1 has the button row
+              // replaced with a Visibility(maintainSize) placeholder so
+              // its layout is preserved bit-for-bit; Layer 3 is a
+              // parallel Column with the inverse — every non-button
+              // widget is the same Visibility-hidden placeholder, the
+              // button row is the only thing that renders.
+              Widget invisibleBox(Widget child) => Visibility(
+                    visible: false,
+                    maintainSize: true,
+                    maintainAnimation: true,
+                    maintainState: true,
+                    child: child,
+                  );
+
+              // Built once and shared between Layer 1 (where it's
+              // hidden via invisibleBox) and Layer 3 (where it renders
+              // for real). Ensures both layers compute identical sizes
+              // for layout matching.
+              final Widget buttonRow = Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _TimerActionButton(
+                    label:
+                        isPaused ? l10n.resumeButton : l10n.pauseButton,
+                    isPrimary: true,
+                    width: 100,
+                    onTap: _handlePauseResume,
+                  ),
+                  const SizedBox(width: 16),
+                  _TimerActionButton(
+                    label: l10n.stopButton,
+                    isPrimary: false,
+                    width: 100,
+                    onTap: _handleStop,
+                  ),
+                  const SizedBox(width: 16),
+                  _TimerActionButton(
+                    label: l10n.skipButton,
+                    isPrimary: false,
+                    width: 100,
+                    onTap: _handleSkip,
+                  ),
+                ],
+              );
+
+              // Dimmable content widgets. Built once per frame; rendered
+              // for real in Layer 1 and as Visibility-hidden placeholders
+              // in Layer 3 so position math matches.
+              final Widget? blockLabelW = showBlockLabel
+                  ? BlockLabel(
+                      currentBlockIndex: currentBlockIndex,
+                      blockType: blockType,
+                      totalContentBlocks: totalContentBlocks,
+                    )
+                  : null;
+
+              final bool showCustomHeader =
+                  phase == WorkoutPhase.preCountdown &&
+                      widget.customHeader != null;
+              final Widget? customHeaderW = showCustomHeader
+                  ? Text(
+                      widget.customHeader!.toUpperCase(),
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.bebasNeue(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFFD4A017),
+                        letterSpacing: 2,
+                      ),
+                    )
+                  : null;
+              final bool showCustomSubtitle =
+                  showCustomHeader && widget.customSubtitle != null;
+              final Widget? customSubtitleW = showCustomSubtitle
+                  ? Text(
+                      widget.customSubtitle!,
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        color: const Color(0xFF8A8A8A),
+                      ),
+                    )
+                  : null;
+
+              final Widget? phaseLabelW = showPhaseLabel
+                  ? Text(
+                      phaseLabel,
+                      style: GoogleFonts.bebasNeue(
+                        fontSize: 52,
+                        fontWeight: FontWeight.w700,
+                        color: phaseColor,
+                        letterSpacing: 3,
+                      ),
+                    )
+                  : null;
+
+              final Widget ringW = SizedBox(
+                width: 380,
+                height: 380,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    CustomPaint(
+                      size: const Size(380, 380),
+                      painter: _CountdownRingPainter(
+                        progress: progress,
+                        arcColor: phaseColor,
+                        trackColor: const Color(0x1AF5C518),
+                        strokeWidth: 6,
+                      ),
+                    ),
+                    Text(
+                      digitText,
+                      style: GoogleFonts.bebasNeue(
+                        fontSize: 220,
+                        fontWeight: FontWeight.w700,
+                        color: digitColor,
+                        letterSpacing: 0,
+                        height: 1.0,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+
+              final Widget tapToStartW = Text(
+                l10n.tapToStartHint,
+                style: GoogleFonts.inter(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w400,
+                  color: const Color(0xFF8A8A8A),
+                  letterSpacing: 4,
+                ),
+              );
+
+              final Widget? totalCardW = showTotalCard
+                  ? Padding(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 16),
+                      child: _TotalTimeCard(
+                        label: l10n.totalTimeCardLabel,
+                        remainingTotalSeconds: totalRemainingSec,
+                      ),
+                    )
+                  : null;
 
               return Stack(
                 children: [
-                  // Ring + digit + bottom section wrapped in a tap target so
-                  // only the pre-tap idle state responds (buttons sit above).
+                  // Layer 1: workout content (dimmed under overlay).
+                  // Same Spacer-flex layout as before; the button row
+                  // slot is replaced by a Visibility-hidden placeholder
+                  // so the Column's vertical math is unchanged.
                   GestureDetector(
                     onTap: _started ? null : _handleStartTap,
                     behavior: HitTestBehavior.opaque,
-                    child: Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (showPhaseLabel) ...[
-                            Text(
-                              phaseLabel,
-                              style: GoogleFonts.bebasNeue(
-                                fontSize: 64,
-                                fontWeight: FontWeight.w700,
-                                color: digitColor,
-                                letterSpacing: 3,
-                              ),
-                            ),
-                            const SizedBox(height: 24),
-                          ],
-                          SizedBox(
-                            width: 380,
-                            height: 380,
-                            child: Stack(
-                              alignment: Alignment.center,
-                              children: [
-                                CustomPaint(
-                                  size: const Size(380, 380),
-                                  painter: _CountdownRingPainter(
-                                    progress: progress,
-                                    arcColor: phaseColor,
-                                    trackColor: const Color(0x1AF5C518),
-                                    strokeWidth: 6,
-                                  ),
-                                ),
-                                Text(
-                                  digitText,
-                                  style: GoogleFonts.bebasNeue(
-                                    fontSize: 220,
-                                    fontWeight: FontWeight.w700,
-                                    color: digitColor,
-                                    letterSpacing: 0,
-                                    height: 1.0,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 32),
-                          if (!_started)
-                            Text(
-                              l10n.tapToStartHint,
-                              style: GoogleFonts.inter(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w400,
-                                color: const Color(0xFF8A8A8A),
-                                letterSpacing: 4,
-                              ),
-                            )
-                          else
-                            // Button row: PAUSE + STOP in release builds
-                            // (140×56 each). In debug, a SKIP button joins
-                            // the row and all three shrink to 100×56 so the
-                            // total (100*3 + 16*2 = 332dp) fits S23's 411dp
-                            // logical width with margin — 140×56 × 3 would
-                            // blow past at 436dp.
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                _TimerActionButton(
-                                  label: isPaused
-                                      ? l10n.resumeButton
-                                      : l10n.pauseButton,
-                                  isPrimary: true,
-                                  width: kDebugMode ? 100 : 140,
-                                  onTap: _handlePauseResume,
-                                ),
-                                const SizedBox(width: 16),
-                                _TimerActionButton(
-                                  label: l10n.stopButton,
-                                  isPrimary: false,
-                                  width: kDebugMode ? 100 : 140,
-                                  onTap: _handleStop,
-                                ),
-                                if (kDebugMode) ...[
-                                  const SizedBox(width: 16),
-                                  _TimerActionButton(
-                                    label: 'SKIP',
-                                    isPrimary: false,
-                                    isDebug: true,
-                                    width: 100,
-                                    onTap: _handleSkip,
-                                  ),
-                                ],
-                              ],
-                            ),
-                          if (showRoundCard) ...[
-                            const SizedBox(height: 24),
-                            _RoundCard(
-                              label: l10n.roundCardLabel,
-                              currentRound: engine.state.currentRound,
-                              totalRounds: engine.state.totalRounds,
-                            ),
-                          ],
-                          if (showTotalCard) ...[
-                            const SizedBox(height: 16),
-                            _TotalTimeCard(
-                              label: l10n.totalTimeCardLabel,
-                              remainingTotalSeconds: totalRemainingSec,
-                            ),
-                          ],
+                    child: Column(
+                      mainAxisSize: MainAxisSize.max,
+                      children: [
+                        const Spacer(flex: 1),
+                        if (blockLabelW != null) ...[
+                          blockLabelW,
+                          const SizedBox(height: 8),
                         ],
-                      ),
+                        if (customHeaderW != null) ...[
+                          customHeaderW,
+                          if (customSubtitleW != null) ...[
+                            const SizedBox(height: 4),
+                            customSubtitleW,
+                          ],
+                          const SizedBox(height: 12),
+                        ],
+                        if (phaseLabelW != null) ...[
+                          phaseLabelW,
+                          const SizedBox(height: 16),
+                        ],
+                        ringW,
+                        const Spacer(flex: 1),
+                        if (!_started)
+                          tapToStartW
+                        else
+                          // Placeholder — real button row lives in Layer 3.
+                          invisibleBox(buttonRow),
+                        if (totalCardW != null) ...[
+                          const SizedBox(height: 16),
+                          totalCardW,
+                        ],
+                        const Spacer(flex: 1),
+                      ],
                     ),
                   ),
-                  // Dim overlay — sits above the ring/digit, below the buttons.
-                  // IgnorePointer keeps the underlying GestureDetector AND the
-                  // button row tappable (buttons render in the GestureDetector's
-                  // column above and aren't covered).
-                  if (isPaused)
-                    const Positioned.fill(
-                      child: IgnorePointer(
-                        child: ColoredBox(color: Color(0x99000000)),
-                      ),
+
+                  // Layer 2: pause overlay. Animates between transparent
+                  // and 55% black on engine.state.isPaused changes.
+                  Positioned.fill(child: _buildPauseOverlay()),
+
+                  // Layer 3: action button row, full brightness above
+                  // the overlay. Parallel Column with the same Spacer
+                  // structure and identically-sized hidden placeholders
+                  // so the button row lands at the same Y as the
+                  // placeholder in Layer 1. Only rendered post-start
+                  // (the tapToStartHint phase has no buttons).
+                  if (_started)
+                    Column(
+                      mainAxisSize: MainAxisSize.max,
+                      children: [
+                        const Spacer(flex: 1),
+                        if (blockLabelW != null) ...[
+                          invisibleBox(blockLabelW),
+                          const SizedBox(height: 8),
+                        ],
+                        if (customHeaderW != null) ...[
+                          invisibleBox(customHeaderW),
+                          if (customSubtitleW != null) ...[
+                            const SizedBox(height: 4),
+                            invisibleBox(customSubtitleW),
+                          ],
+                          const SizedBox(height: 12),
+                        ],
+                        if (phaseLabelW != null) ...[
+                          invisibleBox(phaseLabelW),
+                          const SizedBox(height: 16),
+                        ],
+                        invisibleBox(ringW),
+                        const Spacer(flex: 1),
+                        // Real button row — sits above the overlay,
+                        // stays full-bright + tappable through pause.
+                        buttonRow,
+                        if (totalCardW != null) ...[
+                          const SizedBox(height: 16),
+                          invisibleBox(totalCardW),
+                        ],
+                        const Spacer(flex: 1),
+                      ],
                     ),
                 ],
               );
@@ -551,6 +930,7 @@ class _TimerActionButton extends StatelessWidget {
     required this.isPrimary,
     this.width = 140,
     this.isDebug = false,
+    this.onLongPress,
   });
 
   final String label;
@@ -559,14 +939,19 @@ class _TimerActionButton extends StatelessWidget {
   /// Primary = gold-tinted (PAUSE / RESUME). Non-primary = neutral (STOP).
   final bool isPrimary;
 
-  /// Fixed width. Defaults to 140 for the production two-button row; shrinks
-  /// to 100 when the debug SKIP button makes it a three-button row.
+  /// Fixed width. All three production buttons (PAUSE/STOP/SKIP) ship
+  /// at 100dp in the three-button release layout.
   final double width;
 
-  /// Debug-only variant (SKIP). Muted grey outline + grey text, light
-  /// haptic instead of medium. Hidden from release builds at the call site
-  /// via `if (kDebugMode)`.
+  /// TODO: Stage 2.2F — isDebug field is orphaned now that SKIP shipped
+  /// to release. Cosmetic cleanup deferred to a later stage; remove
+  /// field + all isDebug-conditional styling when convenient.
   final bool isDebug;
+
+  /// TODO: Stage 2.2F — onLongPress parameter is orphaned now that
+  /// SKIP uses tap-only (phase-skip semantics replaced the prior
+  /// 10s-tap / 60s-long-press time-skip). Cosmetic cleanup deferred.
+  final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -590,6 +975,12 @@ class _TimerActionButton extends StatelessWidget {
         }
         onTap();
       },
+      onLongPress: onLongPress == null
+          ? null
+          : () {
+              HapticFeedback.mediumImpact();
+              onLongPress!();
+            },
       behavior: HitTestBehavior.opaque,
       child: Container(
         width: width,
@@ -600,13 +991,21 @@ class _TimerActionButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(14),
         ),
         alignment: Alignment.center,
-        child: Text(
-          label,
-          style: GoogleFonts.bebasNeue(
-            fontSize: 24,
-            fontWeight: FontWeight.w700,
-            color: textColor,
-            letterSpacing: 3,
+        // Stage 2.2H Issue E: FittedBox auto-shrinks long labels
+        // (e.g. ES "REANUDAR", 8 chars) to fit the 100dp width;
+        // shorter labels render at native size unchanged.
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            label,
+            maxLines: 1,
+            softWrap: false,
+            style: GoogleFonts.bebasNeue(
+              fontSize: 24,
+              fontWeight: FontWeight.w700,
+              color: textColor,
+              letterSpacing: 3,
+            ),
           ),
         ),
       ),
@@ -617,6 +1016,11 @@ class _TimerActionButton extends StatelessWidget {
 /// Round counter card — compact readout below the action buttons during
 /// work/rest phases. Same surface color + gold-tinted border as the home
 /// screen preset cards so the design system stays coherent.
+///
+/// Currently unused: the round counter moved up into the phase-label slot
+/// above the ring. Class is parked here intentionally so the layout can be
+/// revived without a re-write if a future design wants both label + card.
+// ignore: unused_element
 class _RoundCard extends StatelessWidget {
   const _RoundCard({
     required this.label,
@@ -708,9 +1112,11 @@ class _CountdownRingPainter extends CustomPainter {
       old.strokeWidth != strokeWidth;
 }
 
-/// Total workout time remaining card — shown below the round card during
-/// work/rest phases. Neutral white-on-charcoal so it reads as reference info
-/// rather than phase state. Derived from engine state, never stored.
+/// Total workout time remaining card — dominant bottom-screen element on
+/// the timer. Stacks a small grey "TOTAL" header above the big white M:SS
+/// digits so the time-remaining figure reads from across the gym. Stretches
+/// to fill its parent's width; height is locked to 120 to seat cleanly
+/// inside the timer column's bottom Spacer.
 class _TotalTimeCard extends StatelessWidget {
   const _TotalTimeCard({
     required this.label,
@@ -723,22 +1129,38 @@ class _TotalTimeCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 220,
-      height: 72,
+      width: double.infinity,
+      height: 120,
       decoration: BoxDecoration(
         color: const Color(0xFF141414),
         border: Border.all(color: const Color(0x1AF5C518), width: 1),
         borderRadius: BorderRadius.circular(14),
       ),
       alignment: Alignment.center,
-      child: Text(
-        '$label ${formatMmSs(remainingTotalSeconds)}',
-        style: GoogleFonts.bebasNeue(
-          fontSize: 40,
-          fontWeight: FontWeight.w700,
-          color: const Color(0xFFFFFFFF),
-          letterSpacing: 2,
-        ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: GoogleFonts.bebasNeue(
+              fontSize: 24,
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFFFFFFFF),
+              letterSpacing: 2,
+            ),
+          ),
+          Text(
+            formatMmSs(remainingTotalSeconds),
+            style: GoogleFonts.bebasNeue(
+              fontSize: 80,
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFFFFFFFF),
+              letterSpacing: 2,
+              height: 1.0,
+            ),
+          ),
+        ],
       ),
     );
   }

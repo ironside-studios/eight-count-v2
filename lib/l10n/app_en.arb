@@ -52,6 +52,8 @@
   "@resumeButton": { "description": "Timer resume button label (replaces PAUSE when paused)" },
   "stopButton": "STOP",
   "@stopButton": { "description": "Timer stop button label, opens end-workout dialog" },
+  "skipButton": "SKIP",
+  "@skipButton": { "description": "Timer skip button label, advances to the next phase (work→rest, rest→next round)" },
   "endWorkoutTitle": "END WORKOUT?",
   "@endWorkoutTitle": { "description": "End-workout confirmation dialog title" },
   "endWorkoutBody": "Progress will not be saved.",
@@ -62,8 +64,8 @@
   "@endAction": { "description": "End-workout confirmation, destructive action" },
   "roundCardLabel": "Rd",
   "@roundCardLabel": { "description": "Short abbreviation for 'Round' shown on the round counter card during a workout (e.g., 'Rd 1/12')" },
-  "totalTimeCardLabel": "TOTAL",
-  "@totalTimeCardLabel": { "description": "Label on the total workout time card shown during a workout" },
+  "totalTimeCardLabel": "TIME REMAINING",
+  "@totalTimeCardLabel": { "description": "Label above the workout-duration counter on the timer screen — reads 'TIME REMAINING' so the user knows the number ticks down toward zero, not up from zero. Shared across Boxing, Smoker, and Custom presets." },
   "workoutCompleteTitle": "WORKOUT COMPLETE",
   "@workoutCompleteTitle": { "description": "Title shown on the workout complete screen" },
   "workoutCompleteTotalLabel": "TOTAL TIME",
@@ -111,5 +113,109 @@
   "discard": "Discard",
   "@discard": { "description": "Destructive action in the unsaved-changes dialog" },
   "workoutNotFound": "Workout not found",
-  "@workoutNotFound": { "description": "SnackBar shown when /timer/custom/:id resolves to a preset that no longer exists (deleted between tap and navigation, bad deep link, etc.)" }
+  "@workoutNotFound": { "description": "SnackBar shown when /timer/custom/:id resolves to a preset that no longer exists (deleted between tap and navigation, bad deep link, etc.)" },
+  "smokerBlockLabel": "BLOCK {index} OF {total}",
+  "@smokerBlockLabel": {
+    "description": "Block index indicator shown above the round counter during a Smoker workout, e.g. 'BLOCK 2 OF 4'",
+    "placeholders": {
+      "index": {},
+      "total": {}
+    }
+  },
+  "smokerBlockTypeBoxing": "BOXING",
+  "@smokerBlockTypeBoxing": { "description": "Block type label used in the Smoker block header for Boxing-style blocks" },
+  "smokerBlockTypeTabata": "TABATA",
+  "@smokerBlockTypeTabata": { "description": "Block type label used in the Smoker block header for Tabata-style blocks" },
+  "smokerTransitionLabel": "TRANSITION → BLOCK {nextIndex}",
+  "@smokerTransitionLabel": {
+    "description": "Label shown during the rest-period transition between Smoker blocks, naming the upcoming block",
+    "placeholders": {
+      "nextIndex": {}
+    }
+  },
+  "customPreviewTitle": "Custom Workouts",
+  "@customPreviewTitle": { "description": "AppBar title on the Custom slots preview screen" },
+  "customSlotEmpty": "Slot {slotNumber} — Tap to build",
+  "@customSlotEmpty": {
+    "description": "Empty slot card placeholder; slotNumber is 1-indexed",
+    "placeholders": {
+      "slotNumber": { "type": "int" }
+    }
+  },
+  "customSlotSubtitle": "{rounds, plural, =1{1 round} other{{rounds} rounds}} · {work} work · {rest} rest",
+  "@customSlotSubtitle": {
+    "description": "Saved slot's summary line; work and rest are pre-formatted M:SS strings",
+    "placeholders": {
+      "rounds": { "type": "int" },
+      "work": { "type": "String" },
+      "rest": { "type": "String" }
+    }
+  },
+  "customSlotTotalLabel": "Total: {duration}",
+  "@customSlotTotalLabel": {
+    "description": "Saved slot's total-duration line; duration is pre-formatted M:SS",
+    "placeholders": {
+      "duration": { "type": "String" }
+    }
+  },
+  "customBuilderEditTitle": "EDIT WORKOUT",
+  "@customBuilderEditTitle": { "description": "Builder screen title when editing an existing slot" },
+  "customBuilderNewTitle": "NEW WORKOUT",
+  "@customBuilderNewTitle": { "description": "Builder screen title when creating a slot" },
+  "customBuilderNameLabel": "WORKOUT NAME",
+  "@customBuilderNameLabel": { "description": "Section label above the name TextField" },
+  "customBuilderRoundsLabel": "ROUNDS",
+  "@customBuilderRoundsLabel": { "description": "Section label above the rounds stepper" },
+  "customBuilderWorkLabel": "WORK",
+  "@customBuilderWorkLabel": { "description": "Section label above the work-duration stepper + slider" },
+  "customBuilderRestLabel": "REST",
+  "@customBuilderRestLabel": { "description": "Section label above the rest-duration stepper + slider" },
+  "customBuilderTotalLabel": "TOTAL WORKOUT",
+  "@customBuilderTotalLabel": { "description": "Section label inside the live total preview card" },
+  "customBuilderTotalSubtitle": "Excludes 45s get-ready",
+  "@customBuilderTotalSubtitle": { "description": "Footnote under the total time clarifying preCountdown is not included" },
+  "customBuilderSaveButton": "SAVE WORKOUT",
+  "@customBuilderSaveButton": { "description": "Primary save CTA on the builder screen" },
+  "customBuilderDeleteButton": "Delete this slot",
+  "@customBuilderDeleteButton": { "description": "Tertiary delete action on the builder screen, only shown when editing a saved slot" },
+  "customBuilderDeleteDialogTitle": "Delete '{name}'?",
+  "@customBuilderDeleteDialogTitle": {
+    "description": "Confirmation dialog title for slot deletion",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "customBuilderDeleteDialogBody": "This cannot be undone.",
+  "@customBuilderDeleteDialogBody": { "description": "Confirmation dialog body for slot deletion" },
+  "customBuilderValidationNameRequired": "Name is required",
+  "@customBuilderValidationNameRequired": { "description": "Inline validation error: name field empty" },
+  "customBuilderValidationNameInvalid": "Use letters, numbers, and spaces only",
+  "@customBuilderValidationNameInvalid": { "description": "Inline validation error: name contains disallowed chars" },
+  "customBuilderValidationNameTooLong": "Name must be 30 characters or fewer",
+  "@customBuilderValidationNameTooLong": { "description": "Inline validation error: name exceeds 30 chars" },
+  "customBuilderValidationRoundsRange": "Rounds must be between 1 and 30",
+  "@customBuilderValidationRoundsRange": { "description": "Validation error: rounds out of bounds" },
+  "customBuilderValidationWorkRange": "Work must be between 10 and 600 seconds",
+  "@customBuilderValidationWorkRange": { "description": "Validation error: workSeconds out of bounds" },
+  "customBuilderValidationRestRange": "Rest must be between 5 and 300 seconds",
+  "@customBuilderValidationRestRange": { "description": "Validation error: restSeconds out of bounds" },
+  "customUpsellTitle": "UNLOCK CUSTOM WORKOUTS",
+  "@customUpsellTitle": { "description": "Upsell modal title shown when free user taps the Custom card" },
+  "customUpsellSubtitle": "Build your own boxing workouts. 3 saved slots, full control.",
+  "@customUpsellSubtitle": { "description": "Upsell modal subtitle pitching the Pro tier" },
+  "customUpsellFeature1": "Custom rounds, work, and rest",
+  "@customUpsellFeature1": { "description": "First feature bullet in the upsell" },
+  "customUpsellFeature2": "3 named saved slots",
+  "@customUpsellFeature2": { "description": "Second feature bullet in the upsell" },
+  "customUpsellFeature3": "No ads",
+  "@customUpsellFeature3": { "description": "Third feature bullet in the upsell" },
+  "customUpsellCta": "Unlock Pro — {price}",
+  "@customUpsellCta": {
+    "description": "Primary CTA button in the upsell modal",
+    "placeholders": {
+      "price": { "type": "String" }
+    }
+  },
+  "customUpsellDismiss": "Maybe later",
+  "@customUpsellDismiss": { "description": "Dismiss button in the upsell modal" }
 }

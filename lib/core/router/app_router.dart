@@ -1,20 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../features/custom_preset/data/custom_preset_repository.dart';
-import '../../features/custom_preset/domain/custom_preset.dart';
-import '../../features/custom_preset/presentation/custom_preset_editor_screen.dart';
-import '../../features/custom_preset/presentation/custom_preset_list_screen.dart';
+import '../../features/custom/models/custom_config.dart';
+import '../../features/custom/screens/custom_builder_screen.dart';
+import '../../features/custom/screens/custom_preview_screen.dart';
+import '../../features/custom/services/custom_preset_service.dart';
+import '../../features/custom/services/custom_workout_adapter.dart';
 import '../../features/home/presentation/home_screen.dart';
 import '../../features/timer/presentation/timer_screen.dart';
 import '../../features/timer/presentation/workout_complete_screen.dart';
 import '../../generated/l10n/app_localizations.dart';
-import '../models/workout_config.dart';
+import '../navigation/route_observer.dart';
 
 /// App-wide router. Two routes for now; the timer route swaps in the real
 /// TimerScreen during Step 3.2 (the placeholder below goes away).
+///
+/// `observers:` registers the shared [routeObserver] so [RouteAware]
+/// widgets (matrix-rain home background) can pause/resume tickers when
+/// the user navigates between screens.
 final GoRouter appRouter = GoRouter(
   initialLocation: '/',
+  observers: <NavigatorObserver>[routeObserver],
   routes: <RouteBase>[
     GoRoute(
       path: '/',
@@ -40,67 +46,74 @@ final GoRouter appRouter = GoRouter(
         );
       },
     ),
+    // /custom and /custom/edit point at the 2026-04-30 Custom-preset
+    // rebuild (lib/features/custom/). The legacy custom_preset/
+    // directory was deleted in Session B; /timer/custom/:slotIndex
+    // now loads from CustomPresetService and adapts via
+    // customConfigToWorkoutConfig.
     GoRoute(
       path: '/custom',
       builder: (BuildContext context, GoRouterState state) =>
-          const CustomPresetListScreen(),
+          const CustomPreviewScreen(),
     ),
     GoRoute(
       path: '/custom/edit',
       builder: (BuildContext context, GoRouterState state) {
-        final existing = state.extra;
-        return CustomPresetEditorScreen(
-          existing: existing is CustomPreset ? existing : null,
-        );
+        final extra = state.extra;
+        if (extra is! CustomConfig) {
+          // Defensive: caller must pass a CustomConfig in `extra`.
+          // Bounce home rather than render a broken screen.
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (context.mounted) context.go('/');
+          });
+          return const _TimerLoadingScaffold();
+        }
+        return CustomBuilderScreen(initialConfig: extra);
       },
     ),
-    // Step 5.2: Custom-preset timer launch. Async-loads the preset from
-    // persistence, then hands a fully-built WorkoutConfig to TimerScreen
-    // via its overrideConfig param.
+    // Custom workout launch: parse slotIndex (0/1/2) from the path,
+    // load the CustomConfig from CustomPresetService (already
+    // hydrated in main()), adapt to a Boxing-style WorkoutConfig via
+    // customConfigToWorkoutConfig, and pass it + the slot name +
+    // workout summary to TimerScreen. The summary string is a
+    // pre-formatted M:SS-style line built from the localized
+    // customSlotSubtitle ARB key.
     GoRoute(
-      path: '/timer/custom/:presetId',
+      path: '/timer/custom/:slotIndex',
       builder: (BuildContext context, GoRouterState state) {
-        final String? id = state.pathParameters['presetId'];
-        if (id == null || id.isEmpty) {
+        final String? raw = state.pathParameters['slotIndex'];
+        final int? slotIndex = raw == null ? null : int.tryParse(raw);
+        if (slotIndex == null || slotIndex < 0 || slotIndex > 2) {
           _scheduleNotFoundBounce(context);
           return const _TimerLoadingScaffold();
         }
-        return FutureBuilder<CustomPreset?>(
-          future: _findPresetById(id),
-          builder: (fbContext, snapshot) {
-            if (snapshot.connectionState != ConnectionState.done) {
-              return const _TimerLoadingScaffold();
-            }
-            final CustomPreset? preset = snapshot.data;
-            if (preset == null) {
-              _scheduleNotFoundBounce(fbContext);
-              return const _TimerLoadingScaffold();
-            }
-            final WorkoutConfig config = WorkoutConfig.custom(
-              rounds: preset.rounds,
-              workSeconds: preset.workSeconds,
-              restSeconds: preset.restSeconds,
-              preCountdownSeconds: preset.preCountdownSeconds,
-            );
-            return TimerScreen(
-              presetId: 'custom',
-              overrideConfig: config,
-            );
-          },
+        final CustomConfig customConfig =
+            CustomPresetService.instance.getSlot(slotIndex);
+        if (!customConfig.isSaved) {
+          _scheduleNotFoundBounce(context);
+          return const _TimerLoadingScaffold();
+        }
+        final l10n = AppLocalizations.of(context)!;
+        final summary = l10n.customSlotSubtitle(
+          customConfig.rounds,
+          _formatMmSs(customConfig.workSeconds),
+          _formatMmSs(customConfig.restSeconds),
+        );
+        return TimerScreen(
+          presetId: 'custom',
+          overrideConfig: customConfigToWorkoutConfig(customConfig),
+          customHeader: customConfig.name,
+          customSubtitle: summary,
         );
       },
     ),
   ],
 );
 
-Future<CustomPreset?> _findPresetById(String id) async {
-  try {
-    final presets = await CustomPresetRepository().loadAll();
-    final matches = presets.where((p) => p.id == id);
-    return matches.isEmpty ? null : matches.first;
-  } catch (_) {
-    return null;
-  }
+String _formatMmSs(int seconds) {
+  final m = seconds ~/ 60;
+  final s = seconds % 60;
+  return '$m:${s.toString().padLeft(2, '0')}';
 }
 
 void _scheduleNotFoundBounce(BuildContext context) {

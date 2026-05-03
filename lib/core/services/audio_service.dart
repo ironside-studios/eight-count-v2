@@ -1,7 +1,12 @@
 // ============================================================================
-// AUDIOSERVICE — LOCKED 2026-04-25
+// AUDIOSERVICE — LOCKED 2026-05-03 (post Stage 2.2D)
+// Previous lock: 2026-04-25
+// Stage 2.2D unlocked briefly to correct whistleDoubleDuration
+// from 889ms to 936ms (verified via afinfo against actual
+// asset on 2026-05-03). No other AudioService changes.
+// Do not modify without explicit request.
 // ============================================================================
-// Hardware-verified on Samsung S23 Ultra (SM-S918U):
+// Hardware-verified on Samsung S23 Ultra (SM-S918U) at 2026-04-25 lock:
 //   - Test A: Boxing rest ghost — PASS
 //   - Test B: Main-screen ghost — PASS
 //   - Test C: Force-close survival — PASS
@@ -80,7 +85,7 @@ class AudioService with WidgetsBindingObserver {
   static const Duration bellStartDuration = Duration(milliseconds: 2976);
   static const Duration bellEndDuration = Duration(milliseconds: 3264);
   static const Duration whistleLongDuration = Duration(milliseconds: 936);
-  static const Duration whistleDoubleDuration = Duration(milliseconds: 2040);
+  static const Duration whistleDoubleDuration = Duration(milliseconds: 936);
   static const Duration woodClackDuration = Duration(milliseconds: 1896);
 
   // --- Static maps: cue identity, priority, asset path ---
@@ -88,6 +93,7 @@ class AudioService with WidgetsBindingObserver {
   static const Map<String, int> _priority = <String, int>{
     'wood_clack': 1,
     'whistle_long': 2,
+    'whistle_double': 2,
     'bell_start': 3,
     'bell_end': 4,
   };
@@ -97,6 +103,7 @@ class AudioService with WidgetsBindingObserver {
     'bell_end': 'assets/audio/bell_end.mp3',
     'wood_clack': 'assets/audio/wood_clack.mp3',
     'whistle_long': 'assets/audio/whistle_long.mp3',
+    'whistle_double': 'assets/audio/whistle_double.mp3',
   };
 
   // --- Owned state ---

@@ -80,6 +80,9 @@ class AppLocalizationsEs extends AppLocalizations {
   String get stopButton => 'PARAR';
 
   @override
+  String get skipButton => 'SALTAR';
+
+  @override
   String get endWorkoutTitle => '¿TERMINAR?';
 
   @override
@@ -95,7 +98,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get roundCardLabel => 'Rnd';
 
   @override
-  String get totalTimeCardLabel => 'TOTAL';
+  String get totalTimeCardLabel => 'TIEMPO RESTANTE';
 
   @override
   String get workoutCompleteTitle => 'ENTRENAMIENTO COMPLETO';
@@ -169,4 +172,131 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get workoutNotFound => 'Entrenamiento no encontrado';
+
+  @override
+  String smokerBlockLabel(Object index, Object total) {
+    return 'BLOQUE $index DE $total';
+  }
+
+  @override
+  String get smokerBlockTypeBoxing => 'BOXEO';
+
+  @override
+  String get smokerBlockTypeTabata => 'TABATA';
+
+  @override
+  String smokerTransitionLabel(Object nextIndex) {
+    return 'TRANSICIÓN → BLOQUE $nextIndex';
+  }
+
+  @override
+  String get customPreviewTitle => 'Entrenamientos personalizados';
+
+  @override
+  String customSlotEmpty(int slotNumber) {
+    return 'Espacio $slotNumber — Toca para crear';
+  }
+
+  @override
+  String customSlotSubtitle(int rounds, String work, String rest) {
+    String _temp0 = intl.Intl.pluralLogic(
+      rounds,
+      locale: localeName,
+      other: '$rounds rondas',
+      one: '1 ronda',
+    );
+    return '$_temp0 · $work trabajo · $rest descanso';
+  }
+
+  @override
+  String customSlotTotalLabel(String duration) {
+    return 'Total: $duration';
+  }
+
+  @override
+  String get customBuilderEditTitle => 'EDITAR ENTRENAMIENTO';
+
+  @override
+  String get customBuilderNewTitle => 'NUEVO ENTRENAMIENTO';
+
+  @override
+  String get customBuilderNameLabel => 'NOMBRE DEL ENTRENAMIENTO';
+
+  @override
+  String get customBuilderRoundsLabel => 'RONDAS';
+
+  @override
+  String get customBuilderWorkLabel => 'TRABAJO';
+
+  @override
+  String get customBuilderRestLabel => 'DESCANSO';
+
+  @override
+  String get customBuilderTotalLabel => 'TIEMPO TOTAL';
+
+  @override
+  String get customBuilderTotalSubtitle => 'No incluye los 45s de preparación';
+
+  @override
+  String get customBuilderSaveButton => 'GUARDAR';
+
+  @override
+  String get customBuilderDeleteButton => 'Eliminar este espacio';
+
+  @override
+  String customBuilderDeleteDialogTitle(String name) {
+    return '¿Eliminar \'$name\'?';
+  }
+
+  @override
+  String get customBuilderDeleteDialogBody =>
+      'Esta acción no se puede deshacer.';
+
+  @override
+  String get customBuilderValidationNameRequired => 'Se requiere un nombre';
+
+  @override
+  String get customBuilderValidationNameInvalid =>
+      'Usa solo letras, números y espacios';
+
+  @override
+  String get customBuilderValidationNameTooLong =>
+      'El nombre debe tener 30 caracteres o menos';
+
+  @override
+  String get customBuilderValidationRoundsRange =>
+      'Las rondas deben estar entre 1 y 30';
+
+  @override
+  String get customBuilderValidationWorkRange =>
+      'El trabajo debe estar entre 10 y 600 segundos';
+
+  @override
+  String get customBuilderValidationRestRange =>
+      'El descanso debe estar entre 5 y 300 segundos';
+
+  @override
+  String get customUpsellTitle => 'DESBLOQUEA ENTRENAMIENTOS PERSONALIZADOS';
+
+  @override
+  String get customUpsellSubtitle =>
+      'Crea tus propios entrenamientos de boxeo. 3 espacios guardados, control total.';
+
+  @override
+  String get customUpsellFeature1 =>
+      'Rondas, trabajo y descanso personalizables';
+
+  @override
+  String get customUpsellFeature2 => '3 espacios guardados con nombre';
+
+  @override
+  String get customUpsellFeature3 => 'Sin anuncios';
+
+  @override
+  String customUpsellCta(String price) {
+    return 'Desbloquear Pro — $price';
+  }
+
+  @override
+  String get customUpsellDismiss => 'Quizás más tarde';
 }
