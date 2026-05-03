@@ -1,2 +1,0 @@
-lib/features/home/presentation/home_screen.dart:    if (_isProUser()) {
-lib/features/home/presentation/home_screen.dart:  bool _isProUser() => false;
