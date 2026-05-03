@@ -58,40 +58,53 @@ void main() {
 
   /// Fast-forward through a Boxing-block round that is NOT the last round
   /// of its block: 180s work (with wood_clack at 11s remaining + bell_end
-  /// at expiry) → 60s rest (with wood_clack + transition).
+  /// at expiry) → 60s rest (with wood_clack + transition). Two-step pattern
+  /// per phase so the 1s-early bell gate (_pollState window at remainingMs
+  /// in (0, 1000ms]) actually samples the cue.
   void runBoxingFullRound() {
-    advanceAndTick(const Duration(seconds: 180)); // → rest
-    advanceAndTick(const Duration(seconds: 60)); // → next work
+    advanceAndTick(const Duration(seconds: 179)); // work → remainingMs=1000 (bell_end fires)
+    advanceAndTick(const Duration(seconds: 1)); // → rest
+    advanceAndTick(const Duration(seconds: 59)); // rest → remainingMs=1000 (bell_start fires)
+    advanceAndTick(const Duration(seconds: 1)); // → next work
   }
 
   /// Fast-forward through a Boxing block's LAST round (no intra-block rest;
   /// transitions to the trailing transition rest phase).
   void runBoxingLastRoundWork() {
-    advanceAndTick(const Duration(seconds: 180));
+    advanceAndTick(const Duration(seconds: 179)); // remainingMs=1000 (bell_end fires)
+    advanceAndTick(const Duration(seconds: 1)); // → transition rest
   }
 
   /// Fast-forward through a Tabata round that is NOT the last round of its
   /// block: 20s work → 10s rest → next work.
   void runTabataFullRound() {
-    advanceAndTick(const Duration(seconds: 20));
-    advanceAndTick(const Duration(seconds: 10));
+    advanceAndTick(const Duration(seconds: 19)); // work → remainingMs=1000
+    advanceAndTick(const Duration(seconds: 1)); // → rest
+    advanceAndTick(const Duration(seconds: 9)); // rest → remainingMs=1000
+    advanceAndTick(const Duration(seconds: 1)); // → next work (whistle_long fires on entry)
   }
 
   /// Fast-forward through a Tabata block's LAST round (no intra-block rest).
   void runTabataLastRoundWork() {
-    advanceAndTick(const Duration(seconds: 20));
+    advanceAndTick(const Duration(seconds: 19)); // remainingMs=1000 (bell_end fires)
+    advanceAndTick(const Duration(seconds: 1)); // → next phase
   }
 
   /// Fast-forward through the 60s transition rest, expiring it onto the
-  /// next block's first work entry.
+  /// next block's first work entry. Two-step so any cue at the boundary
+  /// lands inside the 1s-early gate window.
   void completeTransition() {
-    advanceAndTick(const Duration(seconds: 60));
+    advanceAndTick(const Duration(seconds: 59)); // remainingMs=1000
+    advanceAndTick(const Duration(seconds: 1)); // → next block work-entry
   }
 
   /// Run preCountdown to expiry, landing on Block 1 round 1 work-entry.
+  /// Two-step so bell_start fires via the 1s-early gate at preCountdown
+  /// remainingMs=1000, before the phase advances to work.
   void runPreCountdownToBlock1() {
     engine.start();
-    advanceAndTick(const Duration(seconds: 45));
+    advanceAndTick(const Duration(seconds: 44)); // remainingMs=1000 (bell_start fires)
+    advanceAndTick(const Duration(seconds: 1)); // → work R1
     expect(engine.state.phase, WorkoutPhase.work);
     expect(engine.state.blockType, WorkoutBlockType.boxing);
     expect(engine.state.currentBlockIndex, 1);
