@@ -67,13 +67,24 @@ class _EightCountAppState extends State<EightCountApp>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     switch (state) {
       case AppLifecycleState.resumed:
+        // App back in foreground — re-enable wakelock.
         unawaited(WakelockPlus.enable());
         break;
-      case AppLifecycleState.inactive:
       case AppLifecycleState.paused:
       case AppLifecycleState.detached:
-      case AppLifecycleState.hidden:
+        // Genuine backgrounding (paused) or teardown (detached) —
+        // release wakelock so OS can manage screen normally.
         unawaited(WakelockPlus.disable());
+        break;
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.hidden:
+        // Stage 2.2H Issue D: ignore inactive + hidden.
+        // On Samsung devices, tapping a button with haptic feedback
+        // triggers a brief inactive event during haptic + ripple
+        // animation processing. Treating that as "background" was
+        // disabling wakelock and dimming the screen on every in-app
+        // PAUSE button tap. Both inactive and hidden are micro-events
+        // / OS hint signals, not real backgrounding — ignore them.
         break;
     }
   }

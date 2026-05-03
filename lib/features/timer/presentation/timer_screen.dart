@@ -898,13 +898,21 @@ class _TimerActionButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(14),
         ),
         alignment: Alignment.center,
-        child: Text(
-          label,
-          style: GoogleFonts.bebasNeue(
-            fontSize: 24,
-            fontWeight: FontWeight.w700,
-            color: textColor,
-            letterSpacing: 3,
+        // Stage 2.2H Issue E: FittedBox auto-shrinks long labels
+        // (e.g. ES "REANUDAR", 8 chars) to fit the 100dp width;
+        // shorter labels render at native size unchanged.
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            label,
+            maxLines: 1,
+            softWrap: false,
+            style: GoogleFonts.bebasNeue(
+              fontSize: 24,
+              fontWeight: FontWeight.w700,
+              color: textColor,
+              letterSpacing: 3,
+            ),
           ),
         ),
       ),
