@@ -63,12 +63,13 @@ void main() {
       'bell_start was played', () {
     engine.start();
 
-    // Hop past the 11s warning threshold.
-    clock.advance(const Duration(seconds: 35));
+    // Two-step pattern (commit fb32a4b — bell_start fires 1s early via
+    // _pollState window at remainingMs in (0, 1000ms]). First tick lands
+    // at preCountdown remain=1000 → bell_start fires; second tick at
+    // remain=0 advances phase to work R1.
+    clock.advance(const Duration(seconds: 44));
     engine.debugTick();
-
-    // Hop past the expiry boundary.
-    clock.advance(const Duration(seconds: 15));
+    clock.advance(const Duration(seconds: 1));
     engine.debugTick();
 
     expect(engine.state.phase, WorkoutPhase.work);
@@ -109,26 +110,32 @@ void main() {
 
   test(
       'Advancing through 12 rounds produces 12 bell_start, 0 whistle_long, '
-      '12 bell_end, 23 wood_clack cues (Boxing cue contract)', () {
+      '12 bell_end, 24 wood_clack cues (Boxing cue contract)', () {
     engine.start();
 
-    // Finish preCountdown — no wood_clack fires here under Phase 2a scope.
-    clock.advance(const Duration(seconds: 45));
-    engine.debugTick(); // expires preCountdown → work round 1 + bell_start
+    // preCountdown: two-step so bell_start (commit fb32a4b) and the
+    // preCountdown wood_clack at 12s remaining (commit 2975b5c) both
+    // fire on the (0, 1000ms] sample.
+    clock.advance(const Duration(seconds: 44));
+    engine.debugTick();
+    clock.advance(const Duration(seconds: 1));
+    engine.debugTick();
 
     for (int round = 1; round <= 12; round++) {
-      // Inside work: cross the 11s threshold then expire.
-      clock.advance(const Duration(seconds: 169));
-      engine.debugTick(); // fires work-side wood_clack
-      clock.advance(const Duration(seconds: 11));
-      engine.debugTick(); // expires work → bell_end + rest (or complete on R12)
+      // Work phase: tick at remain=1000ms fires bell_end via 1s-early gate
+      // AND wood_clack via the ≤12s gate (Boxing 12s lead, commit ace1634).
+      clock.advance(const Duration(seconds: 179));
+      engine.debugTick();
+      clock.advance(const Duration(seconds: 1));
+      engine.debugTick(); // → rest (or complete on R12)
 
       if (round < 12) {
-        // Inside rest: cross the 11s threshold then expire.
-        clock.advance(const Duration(seconds: 49));
-        engine.debugTick(); // fires rest-side wood_clack
-        clock.advance(const Duration(seconds: 11));
-        engine.debugTick(); // expires rest → work round N+1 + bell_start
+        // Rest phase: tick at remain=1000ms fires bell_start (next round)
+        // AND wood_clack.
+        clock.advance(const Duration(seconds: 59));
+        engine.debugTick();
+        clock.advance(const Duration(seconds: 1));
+        engine.debugTick(); // → work round N+1
       }
     }
 
@@ -141,8 +148,10 @@ void main() {
         reason: 'whistle_long is Smoker-only; Boxing never fires it');
     expect(count(WorkoutEngine.cueBellEnd), 12,
         reason: 'bell_end fires at end of every work phase (incl. final)');
-    expect(count(WorkoutEngine.cueWoodClack), 23,
-        reason: '12 work-side + 11 rest-side (no rest after R12)');
+    expect(count(WorkoutEngine.cueWoodClack), 24,
+        reason: '1 preCountdown clack + 12 work clacks + 11 rest clacks '
+            '(no rest after R12) = 24 (commit 2975b5c added preCountdown '
+            'clack)');
 
     expect(engine.state.phase, WorkoutPhase.complete);
   });
@@ -240,25 +249,34 @@ void main() {
 
   test('Boxing: bell_end fires at end of every work phase', () {
     engine.start();
-    clock.advance(const Duration(seconds: 45));
-    engine.debugTick(); // preCountdown → work R1
+    // Two-step preCountdown → work R1 (commit fb32a4b).
+    clock.advance(const Duration(seconds: 44));
+    engine.debugTick();
+    clock.advance(const Duration(seconds: 1));
+    engine.debugTick();
     audio.playedCues.clear();
 
     int bellEnds() =>
         audio.playedCues.where((c) => c == WorkoutEngine.cueBellEnd).length;
 
-    // Work R1 → rest R1: one bell_end.
-    clock.advance(const Duration(seconds: 180));
+    // Work R1 → rest R1: bell_end fires via 1s-early gate at remain=1000ms.
+    clock.advance(const Duration(seconds: 179));
+    engine.debugTick();
+    clock.advance(const Duration(seconds: 1));
     engine.debugTick();
     expect(bellEnds(), 1, reason: 'bell_end fires on work R1 exit');
 
     // Rest R1 → work R2: NO new bell_end (rest-exit fires bell_start only).
-    clock.advance(const Duration(seconds: 60));
+    clock.advance(const Duration(seconds: 59));
+    engine.debugTick();
+    clock.advance(const Duration(seconds: 1));
     engine.debugTick();
     expect(bellEnds(), 1, reason: 'rest-exit fires bell_start, not bell_end');
 
     // Work R2 → rest R2: another bell_end.
-    clock.advance(const Duration(seconds: 180));
+    clock.advance(const Duration(seconds: 179));
+    engine.debugTick();
+    clock.advance(const Duration(seconds: 1));
     engine.debugTick();
     expect(bellEnds(), 2, reason: 'bell_end fires on work R2 exit');
   });
@@ -311,20 +329,31 @@ void main() {
   test('Boxing: final round fires bell_end exactly once (no double bell)',
       () {
     engine.start();
-    clock.advance(const Duration(seconds: 45));
-    engine.debugTick(); // → work R1
+    // Two-step preCountdown → work R1.
+    clock.advance(const Duration(seconds: 44));
+    engine.debugTick();
+    clock.advance(const Duration(seconds: 1));
+    engine.debugTick();
 
-    // Advance to start of R12.
+    // Advance to start of R12 with two-step at every phase boundary.
     for (int round = 1; round <= 11; round++) {
-      clock.advance(const Duration(seconds: 180));
+      clock.advance(const Duration(seconds: 179));
       engine.debugTick();
-      clock.advance(const Duration(seconds: 60));
+      clock.advance(const Duration(seconds: 1));
+      engine.debugTick();
+      clock.advance(const Duration(seconds: 59));
+      engine.debugTick();
+      clock.advance(const Duration(seconds: 1));
       engine.debugTick();
     }
     audio.playedCues.clear(); // drop prior bell_ends (rounds 1..11)
 
-    // Expire R12 work.
-    clock.advance(const Duration(seconds: 180));
+    // Expire R12 work — bell_end fires via 1s-early gate at remain=1000ms,
+    // then phase advances to complete (playCompletionCue=false suppresses
+    // a second bell_end on complete-entry).
+    clock.advance(const Duration(seconds: 179));
+    engine.debugTick();
+    clock.advance(const Duration(seconds: 1));
     engine.debugTick();
 
     expect(

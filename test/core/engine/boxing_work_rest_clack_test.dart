@@ -59,24 +59,26 @@ void main() {
 
   // --- Rest-period clack tests ---
 
-  test('wood_clack fires once when elapsed_in_rest reaches 49s', () {
+  test('wood_clack fires once when elapsed_in_rest reaches 48s '
+      '(12s remaining under Boxing 12s lead, commit ace1634)', () {
     advanceToRestR1();
 
     int clacks() => audio.playedCues
         .where((c) => c == WorkoutEngine.cueWoodClack)
         .length;
 
-    // elapsed = 48s → still 12s remaining, no fire.
-    clock.advance(const Duration(seconds: 48));
+    // elapsed = 47s → still 13s remaining, no fire (gate is ≤12s for
+    // Boxing preset, see workout_engine.dart _woodClackLeadTimeForCurrentPhase).
+    clock.advance(const Duration(seconds: 47));
     engine.debugTick();
-    expect(clacks(), 0, reason: 'too early — 12s remaining');
+    expect(clacks(), 0, reason: 'too early — 13s remaining');
 
-    // elapsed = 49s → 11s remaining, must fire.
+    // elapsed = 48s → 12s remaining, must fire.
     clock.advance(const Duration(seconds: 1));
     engine.debugTick();
-    expect(clacks(), 1, reason: 'crossed 11s threshold');
+    expect(clacks(), 1, reason: 'crossed 12s threshold (Boxing rest lead)');
 
-    // elapsed = 50s → still inside the window, must NOT re-fire.
+    // elapsed = 49s → still inside the window, must NOT re-fire.
     clock.advance(const Duration(seconds: 1));
     engine.debugTick();
     expect(clacks(), 1, reason: 'idempotent within the same period');
@@ -124,13 +126,13 @@ void main() {
 
   // --- Pre-workout countdown safety test ---
 
-  test('wood_clack does NOT fire during pre-workout countdown', () {
+  test('wood_clack fires exactly once during pre-workout countdown at '
+      '12s remaining (commit 2975b5c — GET READY clack)', () {
     engine.start();
     expect(engine.state.phase, WorkoutPhase.preCountdown);
 
-    // Advance through the entire 45s preCountdown in 1s ticks, including
-    // across the would-be 11s threshold (elapsed = 34s). Stop just before
-    // crossing into work R1.
+    // Tick across the 12s threshold (elapsed = 33s, remain = 12s). Stop
+    // just before crossing into work R1.
     for (int i = 0; i < 44; i++) {
       clock.advance(const Duration(seconds: 1));
       engine.debugTick();
@@ -138,18 +140,19 @@ void main() {
           reason: 'must stay in preCountdown for the duration of the test');
     }
 
-    expect(
-      audio.playedCues,
-      isNot(contains(WorkoutEngine.cueWoodClack)),
-      reason: 'pre-workout countdown must remain silent at the 11s mark',
-    );
+    final clacks = audio.playedCues
+        .where((c) => c == WorkoutEngine.cueWoodClack)
+        .length;
+    expect(clacks, 1,
+        reason: 'preCountdown clack fires exactly once when remain ≤ 12s; '
+            '_firedCuesThisPeriod set prevents re-fire on subsequent ticks');
   });
 
   // --- Work-period clack tests (extended Phase 2a) ---
 
   test(
-      'wood_clack fires once when elapsed_in_work reaches 169s '
-      '(11s remaining)', () {
+      'wood_clack fires once when elapsed_in_work reaches 168s '
+      '(12s remaining under Boxing 12s lead, commit ace1634)', () {
     engine.start();
     // preCountdown → work R1.
     clock.advance(const Duration(seconds: 45));
@@ -161,17 +164,17 @@ void main() {
         .where((c) => c == WorkoutEngine.cueWoodClack)
         .length;
 
-    // elapsed = 168s → still 12s remaining, no fire.
-    clock.advance(const Duration(seconds: 168));
+    // elapsed = 167s → still 13s remaining, no fire (Boxing 12s lead).
+    clock.advance(const Duration(seconds: 167));
     engine.debugTick();
-    expect(clacks(), 0, reason: 'too early — 12s remaining in work');
+    expect(clacks(), 0, reason: 'too early — 13s remaining in work');
 
-    // elapsed = 169s → 11s remaining, must fire.
+    // elapsed = 168s → 12s remaining, must fire.
     clock.advance(const Duration(seconds: 1));
     engine.debugTick();
-    expect(clacks(), 1, reason: 'crossed 11s threshold in work');
+    expect(clacks(), 1, reason: 'crossed 12s threshold in work');
 
-    // elapsed = 170s → still inside the window, must NOT re-fire.
+    // elapsed = 169s → still inside the window, must NOT re-fire.
     clock.advance(const Duration(seconds: 1));
     engine.debugTick();
     expect(clacks(), 1, reason: 'idempotent within the same work period');
@@ -179,20 +182,23 @@ void main() {
 
   test(
       'wood_clack fires in every work period across full 12-round Boxing flow '
-      '(12 work + 11 rest = 23 total)', () {
+      '(1 preCountdown + 12 work + 11 rest = 24 total)', () {
     engine.start();
     clock.advance(const Duration(seconds: 45));
-    engine.debugTick(); // → work R1
+    engine.debugTick(); // → work R1 (preCountdown clack already fired
+    // on this same tick — gate samples remain ≤ 12s as the engine walks
+    // toward 0; commit 2975b5c added preCountdown clack).
 
     for (int round = 1; round <= 12; round++) {
-      // Inside work: cross the 11s threshold then expire.
+      // Inside work: cross the 12s threshold (Boxing 12s lead, commit
+      // ace1634) then expire.
       clock.advance(const Duration(seconds: 169));
       engine.debugTick(); // fires work-side wood_clack
       clock.advance(const Duration(seconds: 11));
       engine.debugTick(); // expires work → rest (or complete on R12)
 
       if (round < 12) {
-        // Inside rest: cross the 11s threshold then expire.
+        // Inside rest: cross the 12s threshold then expire.
         clock.advance(const Duration(seconds: 49));
         engine.debugTick(); // fires rest-side wood_clack
         clock.advance(const Duration(seconds: 11));
@@ -203,8 +209,9 @@ void main() {
     final clacks = audio.playedCues
         .where((c) => c == WorkoutEngine.cueWoodClack)
         .length;
-    expect(clacks, 23,
-        reason: '12 work periods + 11 rest periods (no rest after R12)');
+    expect(clacks, 24,
+        reason: '1 preCountdown + 12 work + 11 rest = 24 '
+            '(no rest after R12; commit 2975b5c adds preCountdown clack)');
     expect(engine.state.phase, WorkoutPhase.complete);
   });
 }
