@@ -716,12 +716,10 @@ class WorkoutEngine extends ChangeNotifier {
         // Non-Smoker (Boxing): rest-entry is SILENT. whistle_long is
         // reserved for the Smoker preset — the asset stays preloaded by
         // AudioService but nothing fires it on Boxing.
-        if (_isSmoker && _currentBlockType == WorkoutBlockType.tabata) {
-          // V2 COMPROMISE: whistle_double.mp3 has not been recorded yet.
-          // For V2.0 we fire a single whistle_long on Tabata rest-start.
-          // V2.1 task: record whistle_double, swap cue name here.
-          // audio.play(cueWhistleLong); // SUPPRESSED: fired 1s early by _pollState (option-b shift)
-        }
+        // Tabata rest-entry is silent here. The round-end signal for
+        // R1..R{N-1} fires on Tabata work-exit (cueWhistleDouble, see
+        // work-exit switch above ~line 626) which lands on the same
+        // boundary; firing again on rest-entry would be a duplicate.
         // Boxing-block rest and transition rest are silent on entry.
         break;
       case WorkoutPhase.complete:
