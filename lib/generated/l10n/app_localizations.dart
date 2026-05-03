@@ -236,6 +236,12 @@ abstract class AppLocalizations {
   /// **'STOP'**
   String get stopButton;
 
+  /// Timer skip button label, advances to the next phase (work→rest, rest→next round)
+  ///
+  /// In en, this message translates to:
+  /// **'SKIP'**
+  String get skipButton;
+
   /// End-workout confirmation dialog title
   ///
   /// In en, this message translates to:

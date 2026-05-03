@@ -1,8 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart'
-    show debugPrint, kDebugMode, visibleForTesting;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -517,21 +515,12 @@ class _TimerScreenState extends State<TimerScreen> {
     }
   }
 
-  /// DEV-ONLY: tap on SKIP fast-forwards 10s. Long-press fast-forwards
-  /// 60s. Both route through the engine's [debugSkipForward] which
-  /// shifts time anchors (NOT mutable remaining-time state) and
-  /// suppresses cue dispatch during the multi-phase chain so skipping
-  /// across boundaries doesn't trigger a barrage of bells. Tree-shaken
-  /// from release builds via [kDebugMode]. Haptic is fired by the
-  /// button widget itself.
+  /// SKIP advances the engine to the next phase. Stage 2.2F promoted
+  /// this to release builds; Stage 2.2E.3 ensures skipping during work
+  /// fires bell_end so the user hears a natural round-end. The button
+  /// widget fires the haptic itself.
   void _handleSkip() {
-    if (!kDebugMode) return;
-    _engine?.debugSkipForward(10);
-  }
-
-  void _handleSkipLong() {
-    if (!kDebugMode) return;
-    _engine?.debugSkipForward(60);
+    _engine?.skipPhase();
   }
 
   /// Maps the engine's phase to the user-facing label shown above the ring.
@@ -795,12 +784,11 @@ class _TimerScreenState extends State<TimerScreen> {
                             ),
                           )
                         else
-                          // Button row: PAUSE + STOP in release builds
-                          // (140×56 each). In debug, a SKIP button joins
-                          // the row and all three shrink to 100×56 so the
-                          // total (100*3 + 16*2 = 332dp) fits S23's 411dp
-                          // logical width with margin — 140×56 × 3 would
-                          // blow past at 436dp.
+                          // Button row: PAUSE/RESUME + STOP + SKIP, all
+                          // 100×56 in release. Total 100*3 + 16*2 = 332dp,
+                          // fits S23's 411dp logical width with margin.
+                          // (Stage 2.2F promoted SKIP from debug-only to
+                          // release; widths unified at 100dp.)
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
@@ -809,27 +797,23 @@ class _TimerScreenState extends State<TimerScreen> {
                                     ? l10n.resumeButton
                                     : l10n.pauseButton,
                                 isPrimary: true,
-                                width: kDebugMode ? 100 : 140,
+                                width: 100,
                                 onTap: _handlePauseResume,
                               ),
                               const SizedBox(width: 16),
                               _TimerActionButton(
                                 label: l10n.stopButton,
                                 isPrimary: false,
-                                width: kDebugMode ? 100 : 140,
+                                width: 100,
                                 onTap: _handleStop,
                               ),
-                              if (kDebugMode) ...[
-                                const SizedBox(width: 16),
-                                _TimerActionButton(
-                                  label: 'SKIP',
-                                  isPrimary: false,
-                                  isDebug: true,
-                                  width: 100,
-                                  onTap: _handleSkip,
-                                  onLongPress: _handleSkipLong,
-                                ),
-                              ],
+                              const SizedBox(width: 16),
+                              _TimerActionButton(
+                                label: l10n.skipButton,
+                                isPrimary: false,
+                                width: 100,
+                                onTap: _handleSkip,
+                              ),
                             ],
                           ),
                         if (showTotalCard) ...[
@@ -883,19 +867,18 @@ class _TimerActionButton extends StatelessWidget {
   /// Primary = gold-tinted (PAUSE / RESUME). Non-primary = neutral (STOP).
   final bool isPrimary;
 
-  /// Fixed width. Defaults to 140 for the production two-button row; shrinks
-  /// to 100 when the debug SKIP button makes it a three-button row.
+  /// Fixed width. All three production buttons (PAUSE/STOP/SKIP) ship
+  /// at 100dp in the three-button release layout.
   final double width;
 
-  /// Debug-only variant (SKIP). Muted grey outline + grey text, light
-  /// haptic instead of medium. Hidden from release builds at the call site
-  /// via `if (kDebugMode)`.
+  /// TODO: Stage 2.2F — isDebug field is orphaned now that SKIP shipped
+  /// to release. Cosmetic cleanup deferred to a later stage; remove
+  /// field + all isDebug-conditional styling when convenient.
   final bool isDebug;
 
-  /// Optional long-press handler. Used by the debug SKIP button to
-  /// distinguish a 10s tap-skip from a 60s long-press-skip; null on the
-  /// production PAUSE / STOP buttons. Long-press fires a medium-impact
-  /// haptic to differentiate it from the light-impact tap.
+  /// TODO: Stage 2.2F — onLongPress parameter is orphaned now that
+  /// SKIP uses tap-only (phase-skip semantics replaced the prior
+  /// 10s-tap / 60s-long-press time-skip). Cosmetic cleanup deferred.
   final VoidCallback? onLongPress;
 
   @override

@@ -52,6 +52,8 @@
   "@resumeButton": { "description": "Timer resume button label (replaces PAUSE when paused)" },
   "stopButton": "STOP",
   "@stopButton": { "description": "Timer stop button label, opens end-workout dialog" },
+  "skipButton": "SKIP",
+  "@skipButton": { "description": "Timer skip button label, advances to the next phase (work→rest, rest→next round)" },
   "endWorkoutTitle": "END WORKOUT?",
   "@endWorkoutTitle": { "description": "End-workout confirmation dialog title" },
   "endWorkoutBody": "Progress will not be saved.",

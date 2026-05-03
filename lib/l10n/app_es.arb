@@ -23,6 +23,7 @@
   "pauseButton": "PAUSA",
   "resumeButton": "REANUDAR",
   "stopButton": "PARAR",
+  "skipButton": "SALTAR",
   "endWorkoutTitle": "¿TERMINAR?",
   "endWorkoutBody": "El progreso no se guardará.",
   "cancelAction": "CANCELAR",

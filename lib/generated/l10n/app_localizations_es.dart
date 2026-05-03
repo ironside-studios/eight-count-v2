@@ -80,6 +80,9 @@ class AppLocalizationsEs extends AppLocalizations {
   String get stopButton => 'PARAR';
 
   @override
+  String get skipButton => 'SALTAR';
+
+  @override
   String get endWorkoutTitle => '¿TERMINAR?';
 
   @override

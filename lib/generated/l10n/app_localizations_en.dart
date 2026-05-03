@@ -80,6 +80,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get stopButton => 'STOP';
 
   @override
+  String get skipButton => 'SKIP';
+
+  @override
   String get endWorkoutTitle => 'END WORKOUT?';
 
   @override
