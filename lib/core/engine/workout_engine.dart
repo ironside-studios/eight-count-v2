@@ -202,6 +202,12 @@ class WorkoutEngine extends ChangeNotifier {
   /// DEV-ONLY: force-advance past the current phase.
   void skipPhase() {
     if (!_isStarted || _phase == WorkoutPhase.complete) return;
+    if (_phase == WorkoutPhase.work) {
+      // Stage 2.2E.3: skip from work fires bell_end so the
+      // user hears a natural round-end on manual skip.
+      // Idempotent via _firedCuesThisPeriod gate.
+      _fireCueOnce(cueBellEnd);
+    }
     _advanceFromCurrentPhase();
     notifyListeners();
   }
@@ -304,6 +310,17 @@ class WorkoutEngine extends ChangeNotifier {
   void _playCue(String cue) {
     if (kDebugMode && _suppressCuesUntilNextTick) return;
     audio.play(cue);
+  }
+
+  /// Fires [cue] exactly once per current period, gated by
+  /// [_firedCuesThisPeriod]. The set is cleared on every phase
+  /// transition (see [_advanceToPhase]), so this is naturally
+  /// idempotent within a phase. Used by [_pollState]'s 1s-early
+  /// bell gate and by [skipPhase] for work-exit bell_end.
+  void _fireCueOnce(String cue) {
+    if (_firedCuesThisPeriod.contains(cue)) return;
+    _firedCuesThisPeriod.add(cue);
+    _playCue(cue);
   }
 
   Duration _currentPhaseDuration() {
@@ -538,9 +555,8 @@ class WorkoutEngine extends ChangeNotifier {
     // transition→Boxing-block work-entry.
     if (remainingMs <= 1000 && remainingMs > 0) {
       final cueKey = _earlyBellCueForPhaseEnd();
-      if (cueKey != null && !_firedCuesThisPeriod.contains(cueKey)) {
-        _firedCuesThisPeriod.add(cueKey);
-        _playCue(cueKey);
+      if (cueKey != null) {
+        _fireCueOnce(cueKey);
       }
     }
 
