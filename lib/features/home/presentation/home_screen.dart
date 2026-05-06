@@ -9,7 +9,7 @@ import '../../../generated/l10n/app_localizations.dart';
 import '../../settings/presentation/settings_screen.dart';
 import '../../ads/services/ad_visibility_service.dart';
 import '../../ads/widgets/banner_ad_placeholder.dart';
-import '../../custom/widgets/custom_upsell_modal.dart';
+import '../../paywall/widgets/pro_upsell_modal.dart';
 import '../widgets/matrix_rain_background.dart';
 import 'widgets/preset_card.dart';
 
@@ -23,22 +23,32 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  /// Custom card tap: free users see the upsell modal, Pro users route
-  /// to the Custom preview screen. Pro is currently a stub that always
-  /// returns false; replace with RevenueCat entitlement check once the
-  /// vendor number is in.
+  /// Custom card tap: free users see the Pro upsell modal, Pro users
+  /// route to the Custom preview screen.
   void _onCustomCardTap(BuildContext context) {
     if (_isProUser()) {
       context.push('/custom');
     } else {
-      CustomUpsellModal.show(context);
+      ProUpsellModal.show(context);
+    }
+  }
+
+  /// Smoker card tap: free users see the Pro upsell modal, Pro users
+  /// route to the Smoker timer. Mirrors [_onCustomCardTap] — both
+  /// presets unlock from the same Pro entitlement, so they share the
+  /// same gate and the same modal.
+  void _onSmokerCardTap(BuildContext context) {
+    if (_isProUser()) {
+      context.push('/timer/smoker');
+    } else {
+      ProUpsellModal.show(context);
     }
   }
 
   // TODO(revenuecat): replace with RevenueCat entitlement check for
   //   'pro' / 'ai_video_pack' once vendor number lands. Kept as a
   //   non-const method so the analyzer doesn't dead-code the Pro
-  //   branch in [_onCustomCardTap].
+  //   branch in [_onCustomCardTap] / [_onSmokerCardTap].
   bool _isProUser() => false;
 
   @override
@@ -96,13 +106,8 @@ class HomeScreen extends StatelessWidget {
                     PresetCard(
                       title: l10n.smokerTitle,
                       subtitle: l10n.smokerMeta,
-                      // TODO(plumbing): gate Smoker behind Pro tier via
-                      // RevenueCat. Currently free for development. See V2
-                      // monetization spec. The lock pill stays on the card
-                      // until paywall lands so the visual hierarchy still
-                      // signals Pro intent.
                       isLocked: true,
-                      onTap: () => context.push('/timer/smoker'),
+                      onTap: () => _onSmokerCardTap(context),
                     ),
                     const SizedBox(height: AppSpacing.base),
                     PresetCard(

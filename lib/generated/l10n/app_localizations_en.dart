@@ -275,26 +275,16 @@ class AppLocalizationsEn extends AppLocalizations {
       'Rest must be between 5 and 300 seconds';
 
   @override
-  String get customUpsellTitle => 'UNLOCK CUSTOM WORKOUTS';
+  String get proUpsellTitle => 'Unlock Pro';
 
   @override
-  String get customUpsellSubtitle =>
-      'Build your own boxing workouts. 3 saved slots, full control.';
+  String get proUpsellBody => 'Unlock Smoker, Custom workouts, and remove ads.';
 
   @override
-  String get customUpsellFeature1 => 'Custom rounds, work, and rest';
-
-  @override
-  String get customUpsellFeature2 => '3 named saved slots';
-
-  @override
-  String get customUpsellFeature3 => 'No ads';
-
-  @override
-  String customUpsellCta(String price) {
+  String proUpsellCta(String price) {
     return 'Unlock Pro — $price';
   }
 
   @override
-  String get customUpsellDismiss => 'Maybe later';
+  String get proUpsellDismiss => 'Maybe later';
 }

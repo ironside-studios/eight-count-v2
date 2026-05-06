@@ -276,27 +276,17 @@ class AppLocalizationsEs extends AppLocalizations {
       'El descanso debe estar entre 5 y 300 segundos';
 
   @override
-  String get customUpsellTitle => 'DESBLOQUEA ENTRENAMIENTOS PERSONALIZADOS';
+  String get proUpsellTitle => 'Desbloquea Pro';
 
   @override
-  String get customUpsellSubtitle =>
-      'Crea tus propios entrenamientos de boxeo. 3 espacios guardados, control total.';
+  String get proUpsellBody =>
+      'Desbloquea Smoker, entrenamientos personalizados y elimina anuncios.';
 
   @override
-  String get customUpsellFeature1 =>
-      'Rondas, trabajo y descanso personalizables';
-
-  @override
-  String get customUpsellFeature2 => '3 espacios guardados con nombre';
-
-  @override
-  String get customUpsellFeature3 => 'Sin anuncios';
-
-  @override
-  String customUpsellCta(String price) {
+  String proUpsellCta(String price) {
     return 'Desbloquear Pro — $price';
   }
 
   @override
-  String get customUpsellDismiss => 'Quizás más tarde';
+  String get proUpsellDismiss => 'Quizás luego';
 }

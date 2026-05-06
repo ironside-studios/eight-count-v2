@@ -1,25 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../generated/l10n/app_localizations.dart';
 
-/// Bottom-sheet upsell shown to free-tier users when they tap the
-/// Custom card on the home screen. Renders the Pro pitch + a primary
-/// "Unlock Pro — $4.99" button (currently a no-op until RevenueCat
-/// is wired) and a "Maybe later" dismiss.
-class CustomUpsellModal extends StatelessWidget {
-  const CustomUpsellModal({super.key});
+/// Bottom-sheet upsell shown to free-tier users when they tap any
+/// Pro-locked card on the home screen (Smoker or Custom). Renders the
+/// Pro pitch + a primary "Unlock Pro — $4.99" button (currently a
+/// no-op until RevenueCat is wired) and a "Maybe later" dismiss.
+///
+/// One modal, one CTA, one entitlement: $4.99 unlocks Smoker + Custom
+/// + removes ads. When IAP lands, the [_handleUnlock] body becomes the
+/// single integration point — both Smoker and Custom unlock from there.
+class ProUpsellModal extends StatelessWidget {
+  const ProUpsellModal({super.key});
 
   /// Convenience helper so call sites stay clean:
-  ///   `CustomUpsellModal.show(context)`
+  ///   `ProUpsellModal.show(context)`
   static Future<void> show(BuildContext context) {
     return showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (_) => const CustomUpsellModal(),
+      builder: (_) => const ProUpsellModal(),
     );
   }
 
@@ -59,7 +62,7 @@ class CustomUpsellModal extends StatelessWidget {
               ),
               const SizedBox(height: 20),
               Text(
-                l10n.customUpsellTitle,
+                l10n.proUpsellTitle,
                 textAlign: TextAlign.center,
                 style: GoogleFonts.bebasNeue(
                   fontSize: 22,
@@ -69,20 +72,16 @@ class CustomUpsellModal extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               Text(
-                l10n.customUpsellSubtitle,
+                l10n.proUpsellBody,
                 textAlign: TextAlign.center,
                 style: GoogleFonts.inter(
                   fontSize: 14,
                   color: Colors.white,
                 ),
               ),
-              const SizedBox(height: 24),
-              _FeatureRow(text: l10n.customUpsellFeature1),
-              _FeatureRow(text: l10n.customUpsellFeature2),
-              _FeatureRow(text: l10n.customUpsellFeature3),
               const SizedBox(height: 32),
-              // TODO(revenuecat): wire to RevenueCat purchase flow
-              //   when vendor number is in. For now this just dismisses.
+              // TODO(revenuecat): wire to Purchases.purchasePackage when vendor number lands.
+              // Single point of integration — both Smoker and Custom unlock from this handler.
               SizedBox(
                 height: 56,
                 child: ElevatedButton(
@@ -98,7 +97,7 @@ class CustomUpsellModal extends StatelessWidget {
                     ),
                   ),
                   child: Text(
-                    l10n.customUpsellCta('\$4.99'),
+                    l10n.proUpsellCta('\$4.99'),
                     style: GoogleFonts.bebasNeue(
                       fontSize: 16,
                       letterSpacing: 1.5,
@@ -113,7 +112,7 @@ class CustomUpsellModal extends StatelessWidget {
                   Navigator.of(context).pop();
                 },
                 child: Text(
-                  l10n.customUpsellDismiss,
+                  l10n.proUpsellDismiss,
                   style: GoogleFonts.inter(
                     fontSize: 13,
                     color: _muted,
@@ -124,30 +123,6 @@ class CustomUpsellModal extends StatelessWidget {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _FeatureRow extends StatelessWidget {
-  const _FeatureRow({required this.text});
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        children: [
-          const Icon(LucideIcons.check, size: 18, color: Color(0xFFD4A017)),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              text,
-              style: GoogleFonts.inter(fontSize: 13, color: Colors.white),
-            ),
-          ),
-        ],
       ),
     );
   }
