@@ -601,6 +601,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Maybe later'**
   String get proUpsellDismiss;
+
+  /// Shown when on-disk journal data uses an unknown schema version that the current build cannot read
+  ///
+  /// In en, this message translates to:
+  /// **'Journal data needs to be updated. Please contact support if this persists.'**
+  String get journalSchemaVersionMismatch;
 }
 
 class _AppLocalizationsDelegate

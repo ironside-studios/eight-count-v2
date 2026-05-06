@@ -211,5 +211,7 @@
     }
   },
   "proUpsellDismiss": "Maybe later",
-  "@proUpsellDismiss": { "description": "Dismiss button in the Pro upsell modal" }
+  "@proUpsellDismiss": { "description": "Dismiss button in the Pro upsell modal" },
+  "journalSchemaVersionMismatch": "Journal data needs to be updated. Please contact support if this persists.",
+  "@journalSchemaVersionMismatch": { "description": "Shown when on-disk journal data uses an unknown schema version that the current build cannot read" }
 }

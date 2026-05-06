@@ -83,5 +83,6 @@
   "proUpsellTitle": "Desbloquea Pro",
   "proUpsellBody": "Desbloquea Smoker, entrenamientos personalizados y elimina anuncios.",
   "proUpsellCta": "Desbloquear Pro — {price}",
-  "proUpsellDismiss": "Quizás luego"
+  "proUpsellDismiss": "Quizás luego",
+  "journalSchemaVersionMismatch": "Los datos del diario necesitan actualizarse. Contacta soporte si esto persiste."
 }

@@ -289,4 +289,8 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get proUpsellDismiss => 'Quizás luego';
+
+  @override
+  String get journalSchemaVersionMismatch =>
+      'Los datos del diario necesitan actualizarse. Contacta soporte si esto persiste.';
 }
