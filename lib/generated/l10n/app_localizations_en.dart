@@ -287,4 +287,64 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get proUpsellDismiss => 'Maybe later';
+
+  @override
+  String get videoSettingsListEntry => 'Video Capture';
+
+  @override
+  String get videoSettingsTitle => 'Video Capture';
+
+  @override
+  String get videoSettingsEnableTitle => 'Enable Video Capture';
+
+  @override
+  String get videoSettingsEnableSubtitle => 'Record clips during your workouts';
+
+  @override
+  String get videoSettingsClipLengthTitle => 'Clip Length';
+
+  @override
+  String get videoSettingsClipLength20s => '20s';
+
+  @override
+  String get videoSettingsClipLength30s => '30s';
+
+  @override
+  String get videoSettingsCameraTitle => 'Camera';
+
+  @override
+  String get videoSettingsCameraFront => 'Front';
+
+  @override
+  String get videoSettingsCameraBack => 'Back';
+
+  @override
+  String get videoSettingsCameraSubtitle =>
+      'Front for shadowboxing, Back for heavy bag';
+
+  @override
+  String get videoSettingsClipsPerRoundTitle => 'Clips Per Round';
+
+  @override
+  String get videoSettingsCaptureTimingTitle => 'Capture Timing';
+
+  @override
+  String get videoSettingsResolutionTitle => 'Resolution';
+
+  @override
+  String get videoSettingsResolutionStandard => 'Standard (720p)';
+
+  @override
+  String get videoSettingsResolutionHigh => 'High (1080p)';
+
+  @override
+  String get videoSettingsResolutionSubtitle =>
+      'Higher quality uses more storage';
+
+  @override
+  String get videoSettingsAiAutoPickTitle => 'AI Auto-Pick';
+
+  @override
+  String get videoSettingsAiAutoPickSubtitle =>
+      'Smart selection of your best clips after each workout';
 }

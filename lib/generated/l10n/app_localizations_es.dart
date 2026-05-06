@@ -289,4 +289,65 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get proUpsellDismiss => 'Quizás luego';
+
+  @override
+  String get videoSettingsListEntry => 'Grabación de video';
+
+  @override
+  String get videoSettingsTitle => 'Grabación de video';
+
+  @override
+  String get videoSettingsEnableTitle => 'Activar grabación de video';
+
+  @override
+  String get videoSettingsEnableSubtitle =>
+      'Graba clips durante tus entrenamientos';
+
+  @override
+  String get videoSettingsClipLengthTitle => 'Duración del clip';
+
+  @override
+  String get videoSettingsClipLength20s => '20s';
+
+  @override
+  String get videoSettingsClipLength30s => '30s';
+
+  @override
+  String get videoSettingsCameraTitle => 'Cámara';
+
+  @override
+  String get videoSettingsCameraFront => 'Frontal';
+
+  @override
+  String get videoSettingsCameraBack => 'Trasera';
+
+  @override
+  String get videoSettingsCameraSubtitle =>
+      'Frontal para sombra, Trasera para saco pesado';
+
+  @override
+  String get videoSettingsClipsPerRoundTitle => 'Clips por ronda';
+
+  @override
+  String get videoSettingsCaptureTimingTitle => 'Momento de captura';
+
+  @override
+  String get videoSettingsResolutionTitle => 'Resolución';
+
+  @override
+  String get videoSettingsResolutionStandard => 'Estándar (720p)';
+
+  @override
+  String get videoSettingsResolutionHigh => 'Alta (1080p)';
+
+  @override
+  String get videoSettingsResolutionSubtitle =>
+      'La calidad superior usa más almacenamiento';
+
+  @override
+  String get videoSettingsAiAutoPickTitle => 'Selección automática IA';
+
+  @override
+  String get videoSettingsAiAutoPickSubtitle =>
+      'Selección inteligente de tus mejores clips después de cada entrenamiento';
 }

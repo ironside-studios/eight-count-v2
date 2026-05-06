@@ -1,4 +1,21 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Video Pack Foundation (2026-05-06): camera + microphone for clip capture, -->
+    <!-- media-read for gallery save/share. CAMERA + RECORD_AUDIO are runtime         -->
+    <!-- permissions on API 23+; the uses-feature tags mark camera as optional so     -->
+    <!-- the app installs on devices without one.                                     -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
+
+    <!-- Android 13+ (API 33+) granular media permissions. -->
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+
+    <!-- WRITE_EXTERNAL_STORAGE for legacy storage (API ≤28) is contributed -->
+    <!-- transitively by the camera plugin (camera_android_camerax). Declaring -->
+    <!-- it again here would cause a manifest-merger conflict. -->
+
     <application
         android:label="eight_count"
         android:name="${applicationName}"

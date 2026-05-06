@@ -66,5 +66,11 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>8 Count records short workout clips during your training so you can review and share your best moments.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>8 Count captures audio with your workout clips so the action sounds match what you see.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>8 Count saves your selected workout clips to your photo library so you can keep and share them.</string>
 </dict>
 </plist>

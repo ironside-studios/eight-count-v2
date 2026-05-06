@@ -601,6 +601,120 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Maybe later'**
   String get proUpsellDismiss;
+
+  /// Settings screen list entry that opens the Video Pack settings panel
+  ///
+  /// In en, this message translates to:
+  /// **'Video Capture'**
+  String get videoSettingsListEntry;
+
+  /// Title bar of the Video Pack settings screen
+  ///
+  /// In en, this message translates to:
+  /// **'Video Capture'**
+  String get videoSettingsTitle;
+
+  /// Master toggle label on the Video settings screen
+  ///
+  /// In en, this message translates to:
+  /// **'Enable Video Capture'**
+  String get videoSettingsEnableTitle;
+
+  /// Subtitle under the master Video Capture toggle
+  ///
+  /// In en, this message translates to:
+  /// **'Record clips during your workouts'**
+  String get videoSettingsEnableSubtitle;
+
+  /// Section header for clip duration picker
+  ///
+  /// In en, this message translates to:
+  /// **'Clip Length'**
+  String get videoSettingsClipLengthTitle;
+
+  /// Clip length option: 20 seconds
+  ///
+  /// In en, this message translates to:
+  /// **'20s'**
+  String get videoSettingsClipLength20s;
+
+  /// Clip length option: 30 seconds
+  ///
+  /// In en, this message translates to:
+  /// **'30s'**
+  String get videoSettingsClipLength30s;
+
+  /// Section header for front-vs-back camera picker
+  ///
+  /// In en, this message translates to:
+  /// **'Camera'**
+  String get videoSettingsCameraTitle;
+
+  /// Camera direction option: front-facing (selfie) camera
+  ///
+  /// In en, this message translates to:
+  /// **'Front'**
+  String get videoSettingsCameraFront;
+
+  /// Camera direction option: rear-facing camera
+  ///
+  /// In en, this message translates to:
+  /// **'Back'**
+  String get videoSettingsCameraBack;
+
+  /// Subtitle under the camera direction picker
+  ///
+  /// In en, this message translates to:
+  /// **'Front for shadowboxing, Back for heavy bag'**
+  String get videoSettingsCameraSubtitle;
+
+  /// Section header for clips-per-round picker
+  ///
+  /// In en, this message translates to:
+  /// **'Clips Per Round'**
+  String get videoSettingsClipsPerRoundTitle;
+
+  /// Section header for capture-timing chip multi-select
+  ///
+  /// In en, this message translates to:
+  /// **'Capture Timing'**
+  String get videoSettingsCaptureTimingTitle;
+
+  /// Section header for video resolution picker
+  ///
+  /// In en, this message translates to:
+  /// **'Resolution'**
+  String get videoSettingsResolutionTitle;
+
+  /// Resolution option: 720p
+  ///
+  /// In en, this message translates to:
+  /// **'Standard (720p)'**
+  String get videoSettingsResolutionStandard;
+
+  /// Resolution option: 1080p
+  ///
+  /// In en, this message translates to:
+  /// **'High (1080p)'**
+  String get videoSettingsResolutionHigh;
+
+  /// Subtitle under the resolution picker
+  ///
+  /// In en, this message translates to:
+  /// **'Higher quality uses more storage'**
+  String get videoSettingsResolutionSubtitle;
+
+  /// Toggle label for the AI auto-pick feature
+  ///
+  /// In en, this message translates to:
+  /// **'AI Auto-Pick'**
+  String get videoSettingsAiAutoPickTitle;
+
+  /// Subtitle under the AI auto-pick toggle
+  ///
+  /// In en, this message translates to:
+  /// **'Smart selection of your best clips after each workout'**
+  String get videoSettingsAiAutoPickSubtitle;
 }
 
 class _AppLocalizationsDelegate

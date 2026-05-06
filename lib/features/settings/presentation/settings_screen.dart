@@ -7,6 +7,7 @@ import '../../../core/services/locale_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/segmented_toggle.dart';
 import '../../../generated/l10n/app_localizations.dart';
+import '../../video/presentation/video_settings_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -82,6 +83,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 selectedIndex: _selectedIndex,
                 onChanged: _onLanguageChanged,
               ),
+              const SizedBox(height: AppSpacing.xl),
+              _SettingsListEntry(
+                label: l10n.videoSettingsListEntry,
+                icon: LucideIcons.video,
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const VideoSettingsScreen(),
+                    ),
+                  );
+                },
+              ),
             ],
           ),
         ),
@@ -104,6 +118,59 @@ class _SectionLabel extends StatelessWidget {
         letterSpacing: 3,
         fontWeight: FontWeight.w600,
         color: AppColors.greyMuted,
+      ),
+    );
+  }
+}
+
+class _SettingsListEntry extends StatelessWidget {
+  const _SettingsListEntry({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.base,
+          vertical: AppSpacing.md,
+        ),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceCard,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.borderGold, width: 1),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: AppColors.gold, size: 22),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Text(
+                label,
+                style: AppTheme.displayFont(
+                  fontSize: 18,
+                  color: AppColors.white,
+                  letterSpacing: 1.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            Icon(
+              LucideIcons.chevronRight,
+              color: AppColors.greyMuted,
+              size: 20,
+            ),
+          ],
+        ),
       ),
     );
   }
