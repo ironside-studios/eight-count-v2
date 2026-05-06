@@ -199,23 +199,17 @@
   "@customBuilderValidationWorkRange": { "description": "Validation error: workSeconds out of bounds" },
   "customBuilderValidationRestRange": "Rest must be between 5 and 300 seconds",
   "@customBuilderValidationRestRange": { "description": "Validation error: restSeconds out of bounds" },
-  "customUpsellTitle": "UNLOCK CUSTOM WORKOUTS",
-  "@customUpsellTitle": { "description": "Upsell modal title shown when free user taps the Custom card" },
-  "customUpsellSubtitle": "Build your own boxing workouts. 3 saved slots, full control.",
-  "@customUpsellSubtitle": { "description": "Upsell modal subtitle pitching the Pro tier" },
-  "customUpsellFeature1": "Custom rounds, work, and rest",
-  "@customUpsellFeature1": { "description": "First feature bullet in the upsell" },
-  "customUpsellFeature2": "3 named saved slots",
-  "@customUpsellFeature2": { "description": "Second feature bullet in the upsell" },
-  "customUpsellFeature3": "No ads",
-  "@customUpsellFeature3": { "description": "Third feature bullet in the upsell" },
-  "customUpsellCta": "Unlock Pro — {price}",
-  "@customUpsellCta": {
-    "description": "Primary CTA button in the upsell modal",
+  "proUpsellTitle": "Unlock Pro",
+  "@proUpsellTitle": { "description": "Pro upsell modal title shown when a free user taps a Pro-locked card (Smoker or Custom)" },
+  "proUpsellBody": "Unlock Smoker, Custom workouts, and remove ads.",
+  "@proUpsellBody": { "description": "Pro upsell modal body explaining what the Pro tier unlocks" },
+  "proUpsellCta": "Unlock Pro — {price}",
+  "@proUpsellCta": {
+    "description": "Primary CTA button in the Pro upsell modal",
     "placeholders": {
       "price": { "type": "String" }
     }
   },
-  "customUpsellDismiss": "Maybe later",
-  "@customUpsellDismiss": { "description": "Dismiss button in the upsell modal" }
+  "proUpsellDismiss": "Maybe later",
+  "@proUpsellDismiss": { "description": "Dismiss button in the Pro upsell modal" }
 }

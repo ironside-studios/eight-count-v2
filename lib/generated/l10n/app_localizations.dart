@@ -578,47 +578,29 @@ abstract class AppLocalizations {
   /// **'Rest must be between 5 and 300 seconds'**
   String get customBuilderValidationRestRange;
 
-  /// Upsell modal title shown when free user taps the Custom card
+  /// Pro upsell modal title shown when a free user taps a Pro-locked card (Smoker or Custom)
   ///
   /// In en, this message translates to:
-  /// **'UNLOCK CUSTOM WORKOUTS'**
-  String get customUpsellTitle;
+  /// **'Unlock Pro'**
+  String get proUpsellTitle;
 
-  /// Upsell modal subtitle pitching the Pro tier
+  /// Pro upsell modal body explaining what the Pro tier unlocks
   ///
   /// In en, this message translates to:
-  /// **'Build your own boxing workouts. 3 saved slots, full control.'**
-  String get customUpsellSubtitle;
+  /// **'Unlock Smoker, Custom workouts, and remove ads.'**
+  String get proUpsellBody;
 
-  /// First feature bullet in the upsell
-  ///
-  /// In en, this message translates to:
-  /// **'Custom rounds, work, and rest'**
-  String get customUpsellFeature1;
-
-  /// Second feature bullet in the upsell
-  ///
-  /// In en, this message translates to:
-  /// **'3 named saved slots'**
-  String get customUpsellFeature2;
-
-  /// Third feature bullet in the upsell
-  ///
-  /// In en, this message translates to:
-  /// **'No ads'**
-  String get customUpsellFeature3;
-
-  /// Primary CTA button in the upsell modal
+  /// Primary CTA button in the Pro upsell modal
   ///
   /// In en, this message translates to:
   /// **'Unlock Pro — {price}'**
-  String customUpsellCta(String price);
+  String proUpsellCta(String price);
 
-  /// Dismiss button in the upsell modal
+  /// Dismiss button in the Pro upsell modal
   ///
   /// In en, this message translates to:
   /// **'Maybe later'**
-  String get customUpsellDismiss;
+  String get proUpsellDismiss;
 }
 
 class _AppLocalizationsDelegate

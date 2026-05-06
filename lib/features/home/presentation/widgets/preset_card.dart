@@ -117,7 +117,8 @@ class _PresetCardState extends State<PresetCard> {
                                   widget.subtitle,
                                   style: const TextStyle(
                                     fontSize: 13,
-                                    color: AppColors.greyMuted,
+                                    fontWeight: FontWeight.w300,
+                                    color: Colors.white,
                                     letterSpacing: 0.3,
                                   ),
                                 ),
