@@ -8,6 +8,8 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/segmented_toggle.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../models/video_settings.dart';
+import '../screens/video_permission_education_screen.dart';
+import '../services/permission_service.dart';
 import '../services/video_settings_service.dart';
 
 /// Settings → Video Capture panel. Foundation scaffold (Stage Video-1):
@@ -22,29 +24,157 @@ class VideoSettingsScreen extends StatefulWidget {
   State<VideoSettingsScreen> createState() => _VideoSettingsScreenState();
 }
 
-class _VideoSettingsScreenState extends State<VideoSettingsScreen> {
+class _VideoSettingsScreenState extends State<VideoSettingsScreen>
+    with WidgetsBindingObserver {
   /// Hardcoded capture-timing options for the foundation scaffold —
   /// values are seconds-remaining-in-round. The dynamic per-workout
   /// list is wired in a later stage.
   static const List<int> _timingOptions = <int>[150, 120, 90, 60, 30];
 
   VideoSettings? _settings;
+  final PermissionService _permissionService = PermissionService();
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _load();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Test 4 path: user toggled permissions in OS Settings while we
+    // were backgrounded. On resume, re-check; if the master toggle
+    // was ON but permissions are no longer granted, force the toggle
+    // OFF and surface a SnackBar.
+    if (state == AppLifecycleState.resumed) {
+      _reconcileWithPermissions();
+    }
   }
 
   Future<void> _load() async {
     final loaded = await VideoSettingsService.instance.loadSettings();
     if (!mounted) return;
     setState(() => _settings = loaded);
+    // Reconcile once after first load too — the user may have
+    // revoked permissions while the app was completely killed.
+    await _reconcileWithPermissions();
+  }
+
+  Future<void> _reconcileWithPermissions() async {
+    final s = _settings;
+    if (s == null || !s.videoCaptureEnabled) return;
+    final permState = await _permissionService.check();
+    if (!mounted) return;
+    if (!permState.allGranted) {
+      await _update(s.copyWith(videoCaptureEnabled: false));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              AppLocalizations.of(context)!.videoPermissionPermanentlyDenied,
+            ),
+            action: SnackBarAction(
+              label:
+                  AppLocalizations.of(context)!.videoOpenSettings,
+              onPressed: _permissionService.openSettings,
+            ),
+          ),
+        );
+    }
   }
 
   Future<void> _update(VideoSettings next) async {
     setState(() => _settings = next);
     await VideoSettingsService.instance.saveSettings(next);
+  }
+
+  /// Master-toggle handler. On first ON-flip, push the education
+  /// screen and gate the toggle on its result. Subsequent flips skip
+  /// education (already shown).
+  Future<void> _handleMasterToggle(VideoSettings current, bool turningOn) async {
+    HapticFeedback.selectionClick();
+    if (!turningOn) {
+      await _update(current.copyWith(videoCaptureEnabled: false));
+      return;
+    }
+
+    final bool alreadyShown = await VideoSettingsService.instance
+        .getHasShownPermissionEducation();
+    if (!mounted) return;
+
+    if (!alreadyShown) {
+      // First run: push the education screen and act on its result.
+      final result = await Navigator.of(context).push<VideoPermissionState?>(
+        MaterialPageRoute<VideoPermissionState?>(
+          builder: (_) => VideoPermissionEducationScreen(
+            permissionService: _permissionService,
+          ),
+          fullscreenDialog: true,
+        ),
+      );
+      // Education has been shown regardless of outcome.
+      await VideoSettingsService.instance
+          .setHasShownPermissionEducation(true);
+      if (!mounted) return;
+
+      if (result != null && result.allGranted) {
+        await _update(current.copyWith(videoCaptureEnabled: true));
+      } else {
+        // Not now / system-back / partial denial → toggle stays OFF.
+        await _update(current.copyWith(videoCaptureEnabled: false));
+        if (!mounted) return;
+        if (result != null && result.anyPermanentlyDenied) {
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(
+              SnackBar(
+                content: Text(
+                  AppLocalizations.of(context)!
+                      .videoPermissionPermanentlyDenied,
+                ),
+                action: SnackBarAction(
+                  label:
+                      AppLocalizations.of(context)!.videoOpenSettings,
+                  onPressed: _permissionService.openSettings,
+                ),
+              ),
+            );
+        }
+      }
+      return;
+    }
+
+    // Subsequent enables: just verify permissions; if missing,
+    // route the user back to system settings rather than re-asking.
+    final permState = await _permissionService.check();
+    if (!mounted) return;
+    if (permState.allGranted) {
+      await _update(current.copyWith(videoCaptureEnabled: true));
+    } else {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              AppLocalizations.of(context)!.videoPermissionPermanentlyDenied,
+            ),
+            action: SnackBarAction(
+              label:
+                  AppLocalizations.of(context)!.videoOpenSettings,
+              onPressed: _permissionService.openSettings,
+            ),
+          ),
+        );
+    }
   }
 
   @override
@@ -109,10 +239,7 @@ class _VideoSettingsScreenState extends State<VideoSettingsScreen> {
             title: l10n.videoSettingsEnableTitle,
             subtitle: l10n.videoSettingsEnableSubtitle,
             value: enabled,
-            onChanged: (v) {
-              HapticFeedback.selectionClick();
-              _update(s.copyWith(videoCaptureEnabled: v));
-            },
+            onChanged: (v) => _handleMasterToggle(s, v),
           ),
           const SizedBox(height: AppSpacing.xl),
 
