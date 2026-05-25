@@ -102,5 +102,14 @@
   "videoSettingsResolutionHigh": "Alta (1080p)",
   "videoSettingsResolutionSubtitle": "La calidad superior usa más almacenamiento",
   "videoSettingsAiAutoPickTitle": "Selección automática IA",
-  "videoSettingsAiAutoPickSubtitle": "Selección inteligente de tus mejores clips después de cada entrenamiento"
+  "videoSettingsAiAutoPickSubtitle": "Selección inteligente de tus mejores clips después de cada entrenamiento",
+  "videoEducationTitle": "Captura Tu Entrenamiento",
+  "videoEducationBody": "8 Count graba clips cortos durante tus rounds para que revises tu técnica y compartas lo mejor. Las grabaciones se quedan en tu dispositivo hasta que decidas compartirlas.",
+  "videoEducationBulletCamera": "Cámara — para grabar tus rounds",
+  "videoEducationBulletMic": "Micrófono — para capturar señales de audio e impactos",
+  "videoEducationContinue": "Continuar",
+  "videoEducationNotNow": "Ahora no",
+  "videoPermissionDeniedRetry": "Necesitamos acceso a cámara y micrófono para grabar.",
+  "videoPermissionPermanentlyDenied": "Activa cámara y micrófono en Ajustes para grabar.",
+  "videoOpenSettings": "Abrir Ajustes"
 }

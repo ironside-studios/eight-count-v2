@@ -350,4 +350,35 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get videoSettingsAiAutoPickSubtitle =>
       'Selección inteligente de tus mejores clips después de cada entrenamiento';
+
+  @override
+  String get videoEducationTitle => 'Captura Tu Entrenamiento';
+
+  @override
+  String get videoEducationBody =>
+      '8 Count graba clips cortos durante tus rounds para que revises tu técnica y compartas lo mejor. Las grabaciones se quedan en tu dispositivo hasta que decidas compartirlas.';
+
+  @override
+  String get videoEducationBulletCamera => 'Cámara — para grabar tus rounds';
+
+  @override
+  String get videoEducationBulletMic =>
+      'Micrófono — para capturar señales de audio e impactos';
+
+  @override
+  String get videoEducationContinue => 'Continuar';
+
+  @override
+  String get videoEducationNotNow => 'Ahora no';
+
+  @override
+  String get videoPermissionDeniedRetry =>
+      'Necesitamos acceso a cámara y micrófono para grabar.';
+
+  @override
+  String get videoPermissionPermanentlyDenied =>
+      'Activa cámara y micrófono en Ajustes para grabar.';
+
+  @override
+  String get videoOpenSettings => 'Abrir Ajustes';
 }

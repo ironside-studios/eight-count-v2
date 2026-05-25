@@ -715,6 +715,60 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Smart selection of your best clips after each workout'**
   String get videoSettingsAiAutoPickSubtitle;
+
+  /// Headline on the pre-permission education screen shown the first time the user enables Video Capture
+  ///
+  /// In en, this message translates to:
+  /// **'Capture Your Workout'**
+  String get videoEducationTitle;
+
+  /// Body copy on the pre-permission education screen explaining what video capture does and where the clips live
+  ///
+  /// In en, this message translates to:
+  /// **'8 Count records short clips during your rounds so you can review your form and share highlights. Recording stays on your device until you choose to share.'**
+  String get videoEducationBody;
+
+  /// Bullet item explaining why the camera permission is needed
+  ///
+  /// In en, this message translates to:
+  /// **'Camera — to record your rounds'**
+  String get videoEducationBulletCamera;
+
+  /// Bullet item explaining why the microphone permission is needed
+  ///
+  /// In en, this message translates to:
+  /// **'Microphone — to capture audio cues and impact'**
+  String get videoEducationBulletMic;
+
+  /// Primary CTA on the education screen — proceeds to the OS permission dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Continue'**
+  String get videoEducationContinue;
+
+  /// Secondary CTA on the education screen — declines to grant permissions for now
+  ///
+  /// In en, this message translates to:
+  /// **'Not now'**
+  String get videoEducationNotNow;
+
+  /// SnackBar message shown after a non-permanent denial of camera or microphone — invites a retry
+  ///
+  /// In en, this message translates to:
+  /// **'Camera and mic access needed to record.'**
+  String get videoPermissionDeniedRetry;
+
+  /// SnackBar message shown after a permanent denial — points the user to system Settings
+  ///
+  /// In en, this message translates to:
+  /// **'Enable camera and mic in Settings to record.'**
+  String get videoPermissionPermanentlyDenied;
+
+  /// Action label in the permanently-denied SnackBar — opens the app's permission settings
+  ///
+  /// In en, this message translates to:
+  /// **'Open Settings'**
+  String get videoOpenSettings;
 }
 
 class _AppLocalizationsDelegate

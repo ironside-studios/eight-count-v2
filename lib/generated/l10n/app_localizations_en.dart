@@ -347,4 +347,35 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get videoSettingsAiAutoPickSubtitle =>
       'Smart selection of your best clips after each workout';
+
+  @override
+  String get videoEducationTitle => 'Capture Your Workout';
+
+  @override
+  String get videoEducationBody =>
+      '8 Count records short clips during your rounds so you can review your form and share highlights. Recording stays on your device until you choose to share.';
+
+  @override
+  String get videoEducationBulletCamera => 'Camera — to record your rounds';
+
+  @override
+  String get videoEducationBulletMic =>
+      'Microphone — to capture audio cues and impact';
+
+  @override
+  String get videoEducationContinue => 'Continue';
+
+  @override
+  String get videoEducationNotNow => 'Not now';
+
+  @override
+  String get videoPermissionDeniedRetry =>
+      'Camera and mic access needed to record.';
+
+  @override
+  String get videoPermissionPermanentlyDenied =>
+      'Enable camera and mic in Settings to record.';
+
+  @override
+  String get videoOpenSettings => 'Open Settings';
 }
