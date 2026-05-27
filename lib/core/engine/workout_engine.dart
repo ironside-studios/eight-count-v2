@@ -452,22 +452,27 @@ class WorkoutEngine extends ChangeNotifier {
   String? _earlyBellCueForPhaseEnd() {
     switch (_phase) {
       case WorkoutPhase.preCountdown:
-        // Fire bell_start 1s before preCountdown ends. For Smoker first
-        // block of type Tabata, return null — the on-boundary
-        // whistle_long fired from _advanceToPhase work-Tabata branch
-        // handles work-entry cuing for Tabata (no early shift).
+        // 2026-05-27: bell_start for preCountdown→work is NO LONGER fired
+        // here via the 1s-early gate. It now fires ON-BOUNDARY from
+        // _advanceFromCurrentPhase / _advanceFromCurrentPhaseSmoker —
+        // mirroring the skipPhase precedent at :232-234 — so the gong lands
+        // exactly as the screen flips to "ROUND 1 / 3:00" instead of 1s
+        // early during "GET READY 1". (bell_END keeps its 1s-early option-b
+        // shift; only bell_START at this transition moved.) Tabata/
+        // transition first blocks already returned null — their on-boundary
+        // whistle_long path is unchanged.
         if (_isSmoker) {
           final firstBlock = _blocks!.first;
           switch (firstBlock.blockType) {
             case WorkoutBlockType.boxing:
-              return cueBellStart;
+              return null;
             case WorkoutBlockType.tabata:
               return null;
             case WorkoutBlockType.transition:
               return null;
           }
         }
-        return cueBellStart;
+        return null;
 
       case WorkoutPhase.work:
         if (_isSmoker) {
@@ -602,6 +607,15 @@ class WorkoutEngine extends ChangeNotifier {
     switch (_phase) {
       case WorkoutPhase.preCountdown:
         _advanceToPhase(WorkoutPhase.work, round: 1);
+        // 2026-05-27: fire bell_start ON-BOUNDARY (after the phase flip) so
+        // it lands with the "ROUND 1 / 3:00" render instead of 1s early
+        // during GET READY. Mirrors the skipPhase guard at :232-234.
+        // _advanceToPhase cleared _firedCuesThisPeriod, so this fires once.
+        // _currentBlockType is null for Boxing/Custom → guard passes.
+        if (_phase == WorkoutPhase.work &&
+            _currentBlockType != WorkoutBlockType.tabata) {
+          _fireCueOnce(cueBellStart);
+        }
         break;
       case WorkoutPhase.work:
         // Boxing cue contract: bell_end fires at the end of every work
@@ -636,6 +650,15 @@ class WorkoutEngine extends ChangeNotifier {
       case WorkoutPhase.preCountdown:
         // First content block of Smoker is always blockIdx=0 (V2: Boxing).
         _advanceToPhase(WorkoutPhase.work, round: 1);
+        // 2026-05-27: fire bell_start ON-BOUNDARY for a non-Tabata first
+        // block (mirrors skipPhase :232-234 and the Boxing/Custom branch
+        // above). Tabata-first stays silent here — its whistle_long fires
+        // on-boundary from _advanceToPhase's work-Tabata branch. Keeps
+        // bell_start out of the 1s-early gate (see _earlyBellCueForPhaseEnd).
+        if (_phase == WorkoutPhase.work &&
+            _currentBlockType != WorkoutBlockType.tabata) {
+          _fireCueOnce(cueBellStart);
+        }
         break;
 
       case WorkoutPhase.work:

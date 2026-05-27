@@ -99,12 +99,16 @@ void main() {
   }
 
   /// Run preCountdown to expiry, landing on Block 1 round 1 work-entry.
-  /// Two-step so bell_start fires via the 1s-early gate at preCountdown
-  /// remainingMs=1000, before the phase advances to work.
+  /// 2026-05-27: bell_start now fires ON-BOUNDARY (as the phase advances to
+  /// work), NOT 1s early at remainingMs=1000. The first tick (remain=1000)
+  /// must leave it silent; the boundary tick fires it. Mirrors the skipPhase
+  /// on-boundary pattern (workout_engine.dart:232-234).
   void runPreCountdownToBlock1() {
     engine.start();
-    advanceAndTick(const Duration(seconds: 44)); // remainingMs=1000 (bell_start fires)
-    advanceAndTick(const Duration(seconds: 1)); // → work R1
+    advanceAndTick(const Duration(seconds: 44)); // remainingMs=1000: still silent
+    expect(audio.playLog, isNot(contains(WorkoutEngine.cueBellStart)),
+        reason: 'bell_start no longer fires 1s early at preCountdown remain=1000');
+    advanceAndTick(const Duration(seconds: 1)); // → work R1: bell_start on-boundary
     expect(engine.state.phase, WorkoutPhase.work);
     expect(engine.state.blockType, WorkoutBlockType.boxing);
     expect(engine.state.currentBlockIndex, 1);
