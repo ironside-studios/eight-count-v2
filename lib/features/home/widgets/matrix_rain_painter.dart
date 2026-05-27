@@ -90,7 +90,12 @@ class MatrixRainPainter extends CustomPainter {
         if (charY < -_lineHeight || charY > size.height) continue;
 
         final double trailFraction = s.length <= 1 ? 0 : i / (s.length - 1);
-        final double opacity = (1.0 - 0.85 * trailFraction) * streamAlpha;
+        // Trail max alpha cut 50% (2026-05-26 S23 device tune) so the rain
+        // reads as subtle ambience and never overpowers the Home cards.
+        // Head (i == 0) is exempt — bright #FFD700 head stays at full alpha.
+        final double trailDim = i == 0 ? 1.0 : 0.5;
+        final double opacity =
+            (1.0 - 0.85 * trailFraction) * streamAlpha * trailDim;
 
         Color color;
         if (i == 0) {

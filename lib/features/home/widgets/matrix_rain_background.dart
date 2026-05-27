@@ -25,7 +25,9 @@ import 'matrix_rain_painter.dart';
 class MatrixRainBackground extends StatefulWidget {
   const MatrixRainBackground({
     super.key,
-    this.streamCount = 40,
+    // Operating at locked floor (30) per 5/26/26 device tune; raise back
+    // toward 40-50 only if S23 viewing shows it looks sparse.
+    this.streamCount = 30,
     this.speedMultiplier = 1.0,
   });
 
