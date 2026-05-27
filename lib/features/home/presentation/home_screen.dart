@@ -92,31 +92,49 @@ class HomeScreen extends StatelessWidget {
               // ES wrap. Freeing 24dp here gives the Expanded cards
               // column a comfortable cushion in BOTH locales.
               const SizedBox(height: AppSpacing.lg),
+              // 2026-05-26: 3-card column overflowed by 108px on the S23
+              // short viewport (large ES text + banner). Make it scroll on
+              // short viewports while keeping vertical centering on tall
+              // ones: ConstrainedBox(minHeight) + IntrinsicHeight lets the
+              // centered Column fill the viewport when it fits, and the
+              // SingleChildScrollView absorbs the overflow when it doesn't.
+              // No nested Expanded inside the scroll subtree.
               Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    PresetCard(
-                      title: l10n.boxingTitle,
-                      subtitle: l10n.boxingMeta,
-                      isLocked: false,
-                      onTap: () => context.push('/timer/boxing'),
+                child: LayoutBuilder(
+                  builder: (context, constraints) => SingleChildScrollView(
+                    physics: const ClampingScrollPhysics(),
+                    child: ConstrainedBox(
+                      constraints:
+                          BoxConstraints(minHeight: constraints.maxHeight),
+                      child: IntrinsicHeight(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            PresetCard(
+                              title: l10n.boxingTitle,
+                              subtitle: l10n.boxingMeta,
+                              isLocked: false,
+                              onTap: () => context.push('/timer/boxing'),
+                            ),
+                            const SizedBox(height: AppSpacing.base),
+                            PresetCard(
+                              title: l10n.smokerTitle,
+                              subtitle: l10n.smokerMeta,
+                              isLocked: true,
+                              onTap: () => _onSmokerCardTap(context),
+                            ),
+                            const SizedBox(height: AppSpacing.base),
+                            PresetCard(
+                              title: l10n.customTitle,
+                              subtitle: l10n.customMeta,
+                              isLocked: true,
+                              onTap: () => _onCustomCardTap(context),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                    const SizedBox(height: AppSpacing.base),
-                    PresetCard(
-                      title: l10n.smokerTitle,
-                      subtitle: l10n.smokerMeta,
-                      isLocked: true,
-                      onTap: () => _onSmokerCardTap(context),
-                    ),
-                    const SizedBox(height: AppSpacing.base),
-                    PresetCard(
-                      title: l10n.customTitle,
-                      subtitle: l10n.customMeta,
-                      isLocked: true,
-                      onTap: () => _onCustomCardTap(context),
-                    ),
-                  ],
+                  ),
                 ),
               ),
                   // Trimmed 24→12 (AppSpacing.lg → md) on 2026-04-30:
