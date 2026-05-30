@@ -452,22 +452,27 @@ class WorkoutEngine extends ChangeNotifier {
   String? _earlyBellCueForPhaseEnd() {
     switch (_phase) {
       case WorkoutPhase.preCountdown:
-        // Fire bell_start 1s before preCountdown ends. For Smoker first
-        // block of type Tabata, return null — the on-boundary
-        // whistle_long fired from _advanceToPhase work-Tabata branch
-        // handles work-entry cuing for Tabata (no early shift).
+        // 2026-05-27: bell_start for preCountdown→work is NO LONGER fired
+        // here via the 1s-early gate. It now fires ON-BOUNDARY from
+        // _advanceFromCurrentPhase / _advanceFromCurrentPhaseSmoker —
+        // mirroring the skipPhase precedent at :232-234 — so the gong lands
+        // exactly as the screen flips to "ROUND 1 / 3:00" instead of 1s
+        // early during "GET READY 1". (bell_END keeps its 1s-early option-b
+        // shift; only bell_START at this transition moved.) Tabata/
+        // transition first blocks already returned null — their on-boundary
+        // whistle_long path is unchanged.
         if (_isSmoker) {
           final firstBlock = _blocks!.first;
           switch (firstBlock.blockType) {
             case WorkoutBlockType.boxing:
-              return cueBellStart;
+              return null;
             case WorkoutBlockType.tabata:
               return null;
             case WorkoutBlockType.transition:
               return null;
           }
         }
-        return cueBellStart;
+        return null;
 
       case WorkoutPhase.work:
         if (_isSmoker) {
@@ -496,10 +501,13 @@ class WorkoutEngine extends ChangeNotifier {
         return cueBellEnd;
 
       case WorkoutPhase.rest:
-        // The NEXT phase's bell_start (or block-equivalent) is fired
-        // pre-emptively as that phase's preCountdown-equivalent shift.
-        // But there's no preCountdown before "work after rest" — work
-        // starts immediately. So fire bell_start 1s before rest ends.
+        // 2026-05-30: bell_start for rest→work is NO LONGER fired here via
+        // the 1s-early gate. It now fires ON-BOUNDARY from
+        // _advanceFromCurrentPhase / _advanceFromCurrentPhaseSmoker —
+        // mirroring the 6aa5bef preCountdown→work precedent — so rest→work
+        // R2..R{N} syncs identically to Get Ready→R1. Tabata-next paths
+        // already returned null; their on-boundary whistle_long is unchanged.
+        // Engine RE-LOCKED 2026-05-30 after this change.
         if (_isSmoker) {
           // Determine what the next phase will be.
           final blocks = _blocks!;
@@ -508,13 +516,14 @@ class WorkoutEngine extends ChangeNotifier {
               _roundInCurrentBlock >= currentBlock.totalRounds;
           if (currentBlock.blockType == WorkoutBlockType.transition) {
             // Transition rest ends → next content block's first work.
-            // Boxing-next: fire bell_start 1s early (option-b shift).
-            // Tabata-next: return null — whistle_long fires on-boundary
-            // from _advanceToPhase, not 1s early.
+            // Boxing-next: return null — bell_start fires on-boundary from
+            //   _advanceFromCurrentPhaseSmoker (2026-05-30 move; was 1s early).
+            // Tabata-next: return null — whistle_long fires on-boundary from
+            //   _advanceToPhase, unchanged.
             final nextBlock = blocks[_blockIdx! + 1];
             switch (nextBlock.blockType) {
               case WorkoutBlockType.boxing:
-                return cueBellStart;
+                return null;
               case WorkoutBlockType.tabata:
                 return null;
               case WorkoutBlockType.transition:
@@ -528,20 +537,24 @@ class WorkoutEngine extends ChangeNotifier {
             // is unreachable, but defensively return null.
             return null;
           }
-          // Standard intra-block rest → next work in same block. Boxing
-          // gets bell_start 1s early (option-b). Tabata returns null —
-          // whistle_long fires on-boundary from _advanceToPhase.
+          // Standard intra-block rest → next work in same block.
+          // Boxing: return null — bell_start fires on-boundary from
+          //   _advanceFromCurrentPhaseSmoker (2026-05-30 move; was 1s early).
+          // Tabata: return null — whistle_long fires on-boundary from
+          //   _advanceToPhase, unchanged.
           switch (currentBlock.blockType) {
             case WorkoutBlockType.boxing:
-              return cueBellStart;
+              return null;
             case WorkoutBlockType.tabata:
               return null;
             case WorkoutBlockType.transition:
               return null;
           }
         }
-        // Boxing / Custom: rest → next work, fire bell_start.
-        return cueBellStart;
+        // Boxing / Custom: rest → next work. Return null — bell_start fires
+        // on-boundary from _advanceFromCurrentPhase (2026-05-30 move; was
+        // 1s early). Mirrors the 6aa5bef preCountdown→work precedent.
+        return null;
 
       case WorkoutPhase.complete:
         return null;
@@ -602,6 +615,15 @@ class WorkoutEngine extends ChangeNotifier {
     switch (_phase) {
       case WorkoutPhase.preCountdown:
         _advanceToPhase(WorkoutPhase.work, round: 1);
+        // 2026-05-27: fire bell_start ON-BOUNDARY (after the phase flip) so
+        // it lands with the "ROUND 1 / 3:00" render instead of 1s early
+        // during GET READY. Mirrors the skipPhase guard at :232-234.
+        // _advanceToPhase cleared _firedCuesThisPeriod, so this fires once.
+        // _currentBlockType is null for Boxing/Custom → guard passes.
+        if (_phase == WorkoutPhase.work &&
+            _currentBlockType != WorkoutBlockType.tabata) {
+          _fireCueOnce(cueBellStart);
+        }
         break;
       case WorkoutPhase.work:
         // Boxing cue contract: bell_end fires at the end of every work
@@ -624,6 +646,16 @@ class WorkoutEngine extends ChangeNotifier {
         break;
       case WorkoutPhase.rest:
         _advanceToPhase(WorkoutPhase.work, round: _currentRound + 1);
+        // 2026-05-30: fire bell_start ON-BOUNDARY (after the phase flip) so
+        // rest→work R2..R{N} syncs identically to Get Ready→R1. Mirrors the
+        // 6aa5bef preCountdown→work precedent above. _advanceToPhase cleared
+        // _firedCuesThisPeriod, so this fires once. _currentBlockType is
+        // null for Boxing/Custom → guard passes.
+        // Engine RE-LOCKED 2026-05-30 after this change.
+        if (_phase == WorkoutPhase.work &&
+            _currentBlockType != WorkoutBlockType.tabata) {
+          _fireCueOnce(cueBellStart);
+        }
         break;
       case WorkoutPhase.complete:
         break;
@@ -636,6 +668,15 @@ class WorkoutEngine extends ChangeNotifier {
       case WorkoutPhase.preCountdown:
         // First content block of Smoker is always blockIdx=0 (V2: Boxing).
         _advanceToPhase(WorkoutPhase.work, round: 1);
+        // 2026-05-27: fire bell_start ON-BOUNDARY for a non-Tabata first
+        // block (mirrors skipPhase :232-234 and the Boxing/Custom branch
+        // above). Tabata-first stays silent here — its whistle_long fires
+        // on-boundary from _advanceToPhase's work-Tabata branch. Keeps
+        // bell_start out of the 1s-early gate (see _earlyBellCueForPhaseEnd).
+        if (_phase == WorkoutPhase.work &&
+            _currentBlockType != WorkoutBlockType.tabata) {
+          _fireCueOnce(cueBellStart);
+        }
         break;
 
       case WorkoutPhase.work:
@@ -704,10 +745,25 @@ class WorkoutEngine extends ChangeNotifier {
           _currentBlockType = blocks[_blockIdx!].blockType;
           _roundInCurrentBlock = 1;
           _advanceToPhase(WorkoutPhase.work, round: _currentRound + 1);
+          // 2026-05-30: fire bell_start ON-BOUNDARY for Boxing-next blocks
+          // (mirrors 6aa5bef preCountdown→work). Tabata-next stays silent —
+          // its whistle_long fires on-boundary from _advanceToPhase's
+          // work-Tabata branch. Completes rest→work symmetry with Get Ready→R1.
+          if (_phase == WorkoutPhase.work &&
+              _currentBlockType != WorkoutBlockType.tabata) {
+            _fireCueOnce(cueBellStart);
+          }
         } else {
           // Intra-block rest → next round's work in the same block.
           _roundInCurrentBlock++;
           _advanceToPhase(WorkoutPhase.work, round: _currentRound + 1);
+          // 2026-05-30: same on-boundary bell_start fire as the transition
+          // branch above. Intra-block Tabata rests stay silent — Tabata
+          // work entry handled by whistle_long from _advanceToPhase.
+          if (_phase == WorkoutPhase.work &&
+              _currentBlockType != WorkoutBlockType.tabata) {
+            _fireCueOnce(cueBellStart);
+          }
         }
         break;
 

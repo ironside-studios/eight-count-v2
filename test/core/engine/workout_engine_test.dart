@@ -63,18 +63,30 @@ void main() {
       'bell_start was played', () {
     engine.start();
 
-    // Two-step pattern (commit fb32a4b — bell_start fires 1s early via
-    // _pollState window at remainingMs in (0, 1000ms]). First tick lands
-    // at preCountdown remain=1000 → bell_start fires; second tick at
-    // remain=0 advances phase to work R1.
+    // 2026-05-27: bell_start now fires ON-BOUNDARY (the remain≤0 tick, as
+    // the phase flips to work R1), NOT 1s early at remain=1000. Mirrors the
+    // skipPhase on-boundary pattern (workout_engine.dart:232-234). The first
+    // tick at preCountdown remain=1000 must leave bell_start unfired; the
+    // boundary tick fires it exactly once.
     clock.advance(const Duration(seconds: 44));
     engine.debugTick();
+    expect(audio.playedCues.contains(WorkoutEngine.cueBellStart), isFalse,
+        reason: 'bell_start no longer fires 1s early at preCountdown remain=1000');
+    expect(engine.state.phase, WorkoutPhase.preCountdown);
+
     clock.advance(const Duration(seconds: 1));
     engine.debugTick();
 
     expect(engine.state.phase, WorkoutPhase.work);
     expect(engine.state.currentRound, 1);
-    expect(audio.playedCues.contains(WorkoutEngine.cueBellStart), isTrue);
+    expect(audio.playedCues.contains(WorkoutEngine.cueBellStart), isTrue,
+        reason: 'bell_start fires on-boundary as work R1 begins');
+    expect(
+        audio.playedCues
+            .where((c) => c == WorkoutEngine.cueBellStart)
+            .length,
+        1,
+        reason: 'exactly one bell_start per preCountdown→work entry');
   });
 
   test(
@@ -113,9 +125,11 @@ void main() {
       '12 bell_end, 24 wood_clack cues (Boxing cue contract)', () {
     engine.start();
 
-    // preCountdown: two-step so bell_start (commit fb32a4b) and the
-    // preCountdown wood_clack at 12s remaining (commit 2975b5c) both
-    // fire on the (0, 1000ms] sample.
+    // preCountdown: two-step. 2026-05-27 — bell_start now fires ON-BOUNDARY
+    // (the remain=0 tick, as phase flips to work R1), no longer 1s early.
+    // The preCountdown wood_clack at 12s remaining (commit 2975b5c) still
+    // fires on the first (remain=1000) tick via the ≤12s gate. Net count of
+    // bell_start across the whole workout is unchanged (still 12).
     clock.advance(const Duration(seconds: 44));
     engine.debugTick();
     clock.advance(const Duration(seconds: 1));

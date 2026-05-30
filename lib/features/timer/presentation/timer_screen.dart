@@ -790,14 +790,29 @@ class _TimerScreenState extends State<TimerScreen> {
                         strokeWidth: 6,
                       ),
                     ),
-                    Text(
-                      digitText,
-                      style: GoogleFonts.bebasNeue(
-                        fontSize: 220,
-                        fontWeight: FontWeight.w700,
-                        color: digitColor,
-                        letterSpacing: 0,
-                        height: 1.0,
+                    // 2026-05-27: constrain digits to the ring's inscribed
+                    // square (380 / sqrt(2) ≈ 269) + FittedBox(scaleDown) so
+                    // wide 4-char frames ("M:SS" like "2:44") can't cross the
+                    // arc at the 10/2 and 4/8 o'clock positions. Short frames
+                    // still render at full 220pt (scaleDown never upscales).
+                    // Mirrors the label FittedBox pattern elsewhere in file.
+                    SizedBox(
+                      width: 269,
+                      height: 269,
+                      child: Center(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            digitText,
+                            style: GoogleFonts.bebasNeue(
+                              fontSize: 220,
+                              fontWeight: FontWeight.w700,
+                              color: digitColor,
+                              letterSpacing: 0,
+                              height: 1.0,
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                   ],
