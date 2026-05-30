@@ -74,33 +74,61 @@ void main() {
   // -----------------------------------------------------------------
 
   test(
-      'Standard config (3×60×20): bell_start fires at the start of '
-      'every work round (R1, R2, R3) via the 1s-early option-b shift',
+      'Standard config (3×60×20): bell_start fires ON-BOUNDARY at every '
+      'rest→work transition (R2, R3), not 1s-early in rest (2026-05-30 '
+      'contract — mirrors 6aa5bef preCountdown→work precedent)',
       () {
     final t = atR1WorkStart(rounds: 3, workSeconds: 60, restSeconds: 20);
     addTearDown(t.engine.dispose);
 
-    // R1 work runs 60s, then R1 rest 20s, R2 work 60s, etc. Drive
-    // ticks at the 1s-early boundary so the option-b gate fires.
+    // R1 work runs 60s, then R1 rest 20s, R2 work 60s, etc. bell_start
+    // at the rest→work edge fires ON-BOUNDARY (at the work-entry tick),
+    // not 1s early in rest. Drive ticks at BOTH windows and verify.
     int bellStarts() => _count(t.audio.events, WorkoutEngine.cueBellStart);
 
     // R1 → R1 rest. preCountdown's bell_start for R1 already fired
-    // before our log clear.
+    // before our log clear in atR1WorkStart.
     t.clock.advance(const Duration(seconds: 59));
-    t.engine.debugTick(); // R1 work, remainingMs=1000 — option-b
+    t.engine.debugTick(); // R1 work, remainingMs=1000 — fires bell_END
+                          // via option-b shift (work-end), NOT bell_start.
     t.clock.advance(const Duration(seconds: 1));
     t.engine.debugTick(); // → R1 rest
     expect(t.engine.state.phase, WorkoutPhase.rest);
 
-    // R1 rest → R2 work. R2 bell_start fires 1s before rest ends.
+    // R1 rest → R2 work boundary.
     t.clock.advance(const Duration(seconds: 19));
-    t.engine.debugTick(); // remainingMs=1000 in rest, fires bell_start
-    final bellsAfterR2Entry = bellStarts();
-    expect(bellsAfterR2Entry, greaterThanOrEqualTo(1),
-        reason: 'R2 bell_start fires at 1s-early window of R1 rest');
+    t.engine.debugTick(); // remainingMs=1000 in R1 rest
+    expect(bellStarts(), 0,
+        reason: '2026-05-30 contract: NO bell_start fires at the 1s-early '
+            'rest tick — bell_start moved to on-boundary at rest→work');
 
     t.clock.advance(const Duration(seconds: 1));
-    t.engine.debugTick(); // → R2 work
+    t.engine.debugTick(); // remainingMs=0 → BOUNDARY → advance rest→work R2,
+                          // R2 bell_start fires ON-BOUNDARY.
+    expect(t.engine.state.phase, WorkoutPhase.work);
+    expect(t.engine.state.currentRound, 2);
+    expect(bellStarts(), 1,
+        reason: 'R2 bell_start fires on-boundary at rest→work edge '
+            '(mirrors 6aa5bef preCountdown→work precedent)');
+
+    // R2 work → R2 rest → R3 work boundary, repeat verification.
+    t.clock.advance(const Duration(seconds: 60));
+    t.engine.debugTick(); // → R2 rest
+    expect(t.engine.state.phase, WorkoutPhase.rest);
+
+    t.clock.advance(const Duration(seconds: 19));
+    t.engine.debugTick(); // remainingMs=1000 in R2 rest
+    expect(bellStarts(), 1,
+        reason: 'Still no early-gate bell_start in R2 rest under new '
+            'contract — count unchanged from previous boundary fire');
+
+    t.clock.advance(const Duration(seconds: 1));
+    t.engine.debugTick(); // remainingMs=0 → BOUNDARY → advance rest→work R3,
+                          // R3 bell_start fires ON-BOUNDARY.
+    expect(t.engine.state.phase, WorkoutPhase.work);
+    expect(t.engine.state.currentRound, 3);
+    expect(bellStarts(), 2,
+        reason: 'R3 bell_start fires on-boundary at rest→work edge');
   });
 
   test(
